@@ -6,7 +6,6 @@ from django.conf import settings
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
 
-from .dataset_utils import prepare_handwriting_dataset
 from .forms import ImageUploadForm, TrainingForm
 from .models import UploadedImage
 from .services import extract_and_correct_text
@@ -104,6 +103,8 @@ def _get_recommended_training_setup():
 
 def _run_recommended_training():
     """Run one-click recommended training in the background."""
+
+    from .dataset_utils import prepare_handwriting_dataset
 
     recommended_setup = _get_recommended_training_setup()
     dataset_profiles = recommended_setup['dataset_profiles']

@@ -22,12 +22,15 @@ Current stage:
 - Python 3.12 or 3.13
 - pip
 - Virtual environment support
+- Tesseract OCR for local OCR mode on Windows
 
 ## Install and Run
 
 Open the project folder in VS Code terminal and run:
 
 ```bash
+git clone https://github.com/taimuralam0181/handwritting-to-text.git
+cd handwritting-to-text
 python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
@@ -39,6 +42,29 @@ Then open:
 
 ```text
 http://127.0.0.1:8000/
+```
+
+## Windows Local OCR Setup
+
+The local OCR mode uses `pytesseract`, which requires the Tesseract OCR desktop app.
+
+1. Install Tesseract OCR for Windows.
+2. Make sure `tesseract.exe` exists at:
+
+```text
+C:\Program Files\Tesseract-OCR\tesseract.exe
+```
+
+3. If Tesseract is installed in a different folder, update this path in:
+
+```text
+ocr_app/services.py
+```
+
+4. Verify the installation:
+
+```bash
+"C:\Program Files\Tesseract-OCR\tesseract.exe" --version
 ```
 
 ## What This Setup Includes
@@ -61,7 +87,7 @@ For Gemini SDK usage, you only need:
 
 ```bash
 set OCR_API_KEY=your-gemini-api-key
-set OCR_API_MODEL=your-gemini-model-name
+set OCR_API_MODEL=gemini-1.5-flash
 ```
 
 For a custom HTTP OCR endpoint, set:
@@ -143,6 +169,12 @@ datasets/iam_line
 ```
 
 ## Fine-Tune the Handwriting Model
+
+If you want the full OCR / AI training environment, install the larger dependency set first:
+
+```bash
+pip install -r full_ocr_requirements.txt
+```
 
 After preparing the dataset, fine-tune the local handwritten OCR model with:
 

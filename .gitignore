@@ -1,0 +1,20 @@
+__pycache__/
+*.py[cod]
+*.sqlite3
+.env
+.venv/
+venv/
+env/
+
+# Local training artifacts and large files
+datasets/
+local_models/
+media/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+
+# Local scratch files in this workspace
+$env
+set

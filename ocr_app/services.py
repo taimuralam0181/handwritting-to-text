@@ -3,6 +3,7 @@ import base64
 import json
 import os
 import re
+import shutil
 from urllib import error, request
 
 import cv2
@@ -53,6 +54,35 @@ def _resolve_local_ai_model_dir():
     if (FINETUNED_MODEL_DIR / 'config.json').exists():
         return FINETUNED_MODEL_DIR
     return BASE_LOCAL_MODEL_DIR
+
+
+def _resolve_tesseract_command():
+    """Find the Tesseract executable from env vars, common Windows paths, or PATH."""
+
+    configured_cmd = str(getattr(settings, "OCR_TESSERACT_CMD", "")).strip()
+    candidates = []
+
+    if configured_cmd:
+        candidates.append(Path(configured_cmd))
+
+    candidates.extend(
+        [
+            TESSERACT_PATH,
+            Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Tesseract-OCR" / "tesseract.exe",
+            Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")) / "Tesseract-OCR" / "tesseract.exe",
+            Path(os.environ.get("LOCALAPPDATA", "")) / "Tesseract-OCR" / "tesseract.exe",
+        ]
+    )
+
+    for candidate in candidates:
+        if str(candidate).strip() and candidate.exists():
+            return str(candidate)
+
+    discovered_cmd = shutil.which("tesseract")
+    if discovered_cmd:
+        return discovered_cmd
+
+    return ""
 
 
 def _load_color_image(image_path: str):
@@ -907,13 +937,14 @@ def _predict_from_line_segments(gray_image):
 def _predict_with_local_ocr(uploaded_image) -> str:
     """Extract text from the uploaded image using local Tesseract OCR."""
 
-    if not TESSERACT_PATH.exists():
+    tesseract_cmd = _resolve_tesseract_command()
+    if not tesseract_cmd:
         return (
             "Tesseract OCR executable was not found.\n"
-            "Install Tesseract or update the path in ocr_app/services.py."
+            "Install Tesseract OCR and set OCR_TESSERACT_CMD if it is not available in PATH."
         )
 
-    pytesseract.pytesseract.tesseract_cmd = str(TESSERACT_PATH)
+    pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
 
     image_path = uploaded_image.image.path
 

@@ -55,10 +55,10 @@ The local OCR mode uses `pytesseract`, which requires the Tesseract OCR desktop 
 C:\Program Files\Tesseract-OCR\tesseract.exe
 ```
 
-3. If Tesseract is installed in a different folder, update this path in:
+3. If Tesseract is installed in a different folder, either add it to Windows `PATH` or set:
 
 ```text
-ocr_app/services.py
+set OCR_TESSERACT_CMD=C:\your\custom\path\tesseract.exe
 ```
 
 4. Verify the installation:
@@ -66,6 +66,14 @@ ocr_app/services.py
 ```bash
 "C:\Program Files\Tesseract-OCR\tesseract.exe" --version
 ```
+
+The app now tries these options automatically:
+
+- `OCR_TESSERACT_CMD`
+- `C:\Program Files\Tesseract-OCR\tesseract.exe`
+- `C:\Program Files (x86)\Tesseract-OCR\tesseract.exe`
+- `%LOCALAPPDATA%\Tesseract-OCR\tesseract.exe`
+- `tesseract` from Windows `PATH`
 
 ## What This Setup Includes
 

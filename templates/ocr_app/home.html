@@ -5,6 +5,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Handwritten Image to Text Recognition</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link
         href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
         rel="stylesheet"
@@ -12,397 +15,350 @@
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
 </head>
 <body>
-    <div class="container py-5">
-        <div class="row justify-content-center">
-            <div class="col-xl-10">
-                <div class="hero-banner mb-4">
-                    <p class="hero-tag mb-2">University Final Year Project Demo</p>
-                    <h1 class="mb-3">Handwritten Image to Text Recognition</h1>
-                    <p class="hero-text mb-0">
-                        This project now supports image upload, preview, and OCR-based text extraction
-                        using one smart OCR engine that automatically chooses the best local method.
-                    </p>
-                </div>
-
-                <div class="row g-4">
-                    <div class="col-lg-5">
-                        <div class="card shadow-sm border-0 h-100">
-                            <div class="card-body p-4">
-                                <h2 class="h4 mb-3">Upload Handwritten Image</h2>
-                                <p class="text-muted mb-4">
-                                    Supported formats: JPG, PNG, BMP, GIF, WEBP. Maximum size: 5 MB.
-                                </p>
-
-                                {% if messages %}
-                                    {% for message in messages %}
-                                        <div class="alert alert-{{ message.tags }} mb-3" role="alert">
-                                            {{ message }}
-                                        </div>
-                                    {% endfor %}
-                                {% endif %}
-
-                                <form method="post" enctype="multipart/form-data" novalidate data-processing-form>
-                                    {% csrf_token %}
-                                    <input type="hidden" name="action" value="upload">
-
-                                    <div class="mb-3">
-                                        <label for="{{ form.title.id_for_label }}" class="form-label">
-                                            Image Title
-                                        </label>
-                                        {{ form.title }}
-                                        {% if form.title.errors %}
-                                            <div class="text-danger small mt-1">{{ form.title.errors|join:", " }}</div>
-                                        {% endif %}
-                                    </div>
-
-                                    {{ form.ocr_engine }}
-
-                                    <div class="mb-3">
-                                        <label for="{{ form.image.id_for_label }}" class="form-label">
-                                            Upload Handwritten Image
-                                        </label>
-                                        {{ form.image }}
-                                        {% if form.image.errors %}
-                                            <div class="text-danger small mt-1">{{ form.image.errors|join:", " }}</div>
-                                        {% endif %}
-                                    </div>
-
-                                    <div class="mb-3">
-                                        <label for="{{ form.extraction_mode.id_for_label }}" class="form-label">
-                                            Extraction Mode
-                                        </label>
-                                        {{ form.extraction_mode }}
-                                        <div class="form-text">
-                                            Like the older project: try full image, auto crop, or both and keep the stronger result.
-                                        </div>
-                                        {% if form.extraction_mode.errors %}
-                                            <div class="text-danger small mt-1">{{ form.extraction_mode.errors|join:", " }}</div>
-                                        {% endif %}
-                                    </div>
-
-                                    <div class="mb-3">
-                                        <label for="{{ form.target_type.id_for_label }}" class="form-label">
-                                            Target Type
-                                        </label>
-                                        {{ form.target_type }}
-                                        <div class="form-text">
-                                            Choose what the image mainly contains so the OCR pipeline can focus on the right strategy.
-                                        </div>
-                                        {% if form.target_type.errors %}
-                                            <div class="text-danger small mt-1">{{ form.target_type.errors|join:", " }}</div>
-                                        {% endif %}
-                                    </div>
-
-                                    <button type="submit" class="btn btn-primary w-100" data-submit-label="Upload Image">
-                                        <span class="button-label">Upload Image</span>
-                                        <span class="spinner-border spinner-border-sm d-none" aria-hidden="true"></span>
-                                    </button>
-                                    <div class="processing-note d-none" aria-live="polite">
-                                        Processing image and generating prediction. Please wait.
-                                    </div>
-                                </form>
-
-                                <hr class="my-4">
-
-                                <h2 class="h4 mb-3">Build Custom Training Set</h2>
-                                <p class="text-muted mb-3">
-                                    Upload your own handwriting images and add one matching text line for each image.
-                                    These samples will be added to the local custom dataset and included in training.
-                                </p>
-
-                                <form method="post" enctype="multipart/form-data" novalidate data-processing-form>
-                                    {% csrf_token %}
-                                    <input type="hidden" name="action" value="add_training_samples">
-
-                                    <div class="prediction-box prediction-box-secondary mb-3">
-                                        <p class="mb-1"><strong>Saved Custom Samples:</strong> {{ custom_dataset_sample_count }}</p>
-                                        <p class="mb-0">
-                                            <strong>Training Status:</strong>
-                                            {% if custom_dataset_ready %}
-                                                Ready for custom training
-                                            {% else %}
-                                                Add at least one labeled sample
-                                            {% endif %}
-                                        </p>
-                                    </div>
-
-                                    <div class="mb-3">
-                                        <label for="{{ custom_training_form.images.id_for_label }}" class="form-label">
-                                            Training Images
-                                        </label>
-                                        {{ custom_training_form.images }}
-                                        {% if custom_training_form.images.errors %}
-                                            <div class="text-danger small mt-1">{{ custom_training_form.images.errors|join:", " }}</div>
-                                        {% endif %}
-                                    </div>
-
-                                    <div class="mb-3">
-                                        <label for="{{ custom_training_form.texts.id_for_label }}" class="form-label">
-                                            Matching Text Labels
-                                        </label>
-                                        {{ custom_training_form.texts }}
-                                        <div class="form-text">
-                                            Example: if you upload 3 images, write 3 lines here in the same order.
-                                        </div>
-                                        {% if custom_training_form.texts.errors %}
-                                            <div class="text-danger small mt-1">{{ custom_training_form.texts.errors|join:", " }}</div>
-                                        {% endif %}
-                                        {% if custom_training_form.non_field_errors %}
-                                            <div class="text-danger small mt-1">{{ custom_training_form.non_field_errors|join:", " }}</div>
-                                        {% endif %}
-                                    </div>
-
-                                    <div class="form-check mb-3">
-                                        {{ custom_training_form.auto_segment }}
-                                        <label class="form-check-label" for="{{ custom_training_form.auto_segment.id_for_label }}">
-                                            Auto-split one image into separate text groups
-                                        </label>
-                                        <div class="form-text">
-                                            Use this when one page contains multiple separate words or lines, and your text labels match those groups in top-to-bottom order.
-                                        </div>
-                                    </div>
-
-                                    <button type="submit" class="btn btn-outline-secondary w-100" data-submit-label="Save Custom Training Samples">
-                                        <span class="button-label">Save Custom Training Samples</span>
-                                        <span class="spinner-border spinner-border-sm d-none" aria-hidden="true"></span>
-                                    </button>
-                                    <div class="processing-note d-none" aria-live="polite">
-                                        Saving custom training images and labels. Please wait.
-                                    </div>
-                                </form>
-
-                                <hr class="my-4">
-
-                                <h2 class="h4 mb-3">Train Model</h2>
-                                <p class="text-muted mb-4">
-                                    One click is enough. The system will use the recommended handwriting dataset
-                                    and balanced training settings automatically.
-                                </p>
-
-                                <form method="post" novalidate data-processing-form>
-                                    {% csrf_token %}
-                                    <input type="hidden" name="action" value="train">
-                                    <div class="small text-muted mb-3">
-                                        Recommended setup:
-                                        `{{ recommended_training_setup.dataset_profiles|join:", " }}` + `balanced training`
-                                    </div>
-                                    <div class="prediction-box prediction-box-secondary mb-3">
-                                        <p class="mb-1"><strong>Datasets:</strong> {{ recommended_training_setup.dataset_profiles|join:", " }}</p>
-                                        <p class="mb-1"><strong>Epochs:</strong> {{ recommended_training_setup.epochs }}</p>
-                                        <p class="mb-1"><strong>Train Samples:</strong> {{ recommended_training_setup.train_limit }}</p>
-                                        <p class="mb-1"><strong>Validation Samples:</strong> {{ recommended_training_setup.eval_limit }}</p>
-                                        <p class="mb-0"><strong>Batch Size:</strong> {{ recommended_training_setup.train_batch_size }}</p>
-                                    </div>
-                                    <button type="submit" class="btn btn-outline-primary w-100" data-submit-label="Start Recommended Training">
-                                        <span class="button-label">Start Recommended Training</span>
-                                        <span class="spinner-border spinner-border-sm d-none" aria-hidden="true"></span>
-                                    </button>
-                                    <div class="processing-note d-none" aria-live="polite">
-                                        Starting training job. Progress will appear below.
-                                    </div>
-                                </form>
-
-                                <div class="prediction-box prediction-box-secondary mt-4" id="training-status-box">
-                                    <div class="d-flex justify-content-between align-items-center mb-2">
-                                        <h3 class="h6 mb-0">Training Progress</h3>
-                                        <span class="badge text-bg-primary" id="training-status-badge">
-                                            {{ training_summary.status|default:"idle" }}
-                                        </span>
-                                    </div>
-                                    <p class="mb-1"><strong>Dataset:</strong> <span id="training-dataset">{{ training_summary.dataset_profile|default:"iam_line" }}</span></p>
-                                    <p class="mb-1"><strong>Mode:</strong> <span id="training-mode">{{ training_summary.training_mode|default:"balanced" }}</span></p>
-                                    <p class="mb-2"><strong>Status:</strong> <span id="training-message">{{ training_summary.message|default:"No training started yet." }}</span></p>
-                                    <div class="progress mb-2" role="progressbar" aria-label="Training progress" aria-valuemin="0" aria-valuemax="100">
-                                        <div
-                                            class="progress-bar"
-                                            id="training-progress-bar"
-                                            style="width: {{ training_summary.progress|default:0 }}%;"
-                                        >
-                                            {{ training_summary.progress|default:0 }}%
-                                        </div>
-                                    </div>
-                                    <p class="small text-muted mb-0">
-                                        Training runs in the background. Keep this page open to watch updates.
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="col-lg-7">
-                        <div class="card shadow-sm border-0 h-100">
-                            <div class="card-body p-4">
-                                <h2 class="h4 mb-3">Latest Uploaded Preview</h2>
-
-                                {% if uploaded_image %}
-                                    <div class="preview-box mb-4">
-                                        {% if uploaded_image.title %}
-                                            <p class="mb-2"><strong>Title:</strong> {{ uploaded_image.title }}</p>
-                                        {% endif %}
-                                        <p class="mb-2"><strong>OCR Engine:</strong> {{ uploaded_image.get_ocr_engine_display }}</p>
-                                        <p class="mb-2"><strong>Extraction Mode:</strong> {{ latest_extraction_mode }}</p>
-                                        <p class="mb-2"><strong>Target Type:</strong> {{ latest_target_type }}</p>
-                                        <p class="mb-2">
-                                            <strong>Prediction Source:</strong>
-                                            <span class="prediction-light {% if uploaded_image.is_gemini_prediction %}prediction-light-gemini{% else %}prediction-light-ocr{% endif %}"></span>
-                                            {% if uploaded_image.is_gemini_prediction %}Gemini{% else %}OCR{% endif %}
-                                        </p>
-                                        {% if uploaded_image.prediction_notes %}
-                                            <p class="small prediction-note-text mb-2">{{ uploaded_image.prediction_notes }}</p>
-                                        {% endif %}
-                                        <p class="text-muted small mb-3">
-                                            Uploaded on {{ uploaded_image.uploaded_at|date:"d M Y, h:i A" }}
-                                        </p>
-                                        <img
-                                            src="{{ uploaded_image.image.url }}"
-                                            alt="Uploaded handwritten sample"
-                                            class="img-fluid rounded border"
-                                        >
-                                    </div>
-
-                                    <div class="prediction-box mb-4">
-                                        <div class="d-flex justify-content-between align-items-center mb-2">
-                                            <h3 class="h5 mb-0">Predicted Text</h3>
-                                            <span class="prediction-source-chip {% if uploaded_image.is_gemini_prediction %}prediction-source-chip-gemini{% else %}prediction-source-chip-ocr{% endif %}">
-                                                <span class="prediction-light {% if uploaded_image.is_gemini_prediction %}prediction-light-gemini{% else %}prediction-light-ocr{% endif %}"></span>
-                                                {% if uploaded_image.is_gemini_prediction %}Gemini{% else %}OCR{% endif %}
-                                            </span>
-                                        </div>
-                                        <pre class="prediction-text mb-0">{{ uploaded_image.predicted_text }}</pre>
-                                    </div>
-
-                                    <div class="prediction-box prediction-box-secondary mb-4">
-                                        <div class="d-flex justify-content-between align-items-center mb-2">
-                                            <h3 class="h5 mb-0">Fix Prediction</h3>
-                                            {% if uploaded_image.correction_applied %}
-                                                <span class="badge text-bg-success">Saved for retraining</span>
-                                            {% endif %}
-                                        </div>
-                                        <p class="text-muted small mb-3">
-                                            If the prediction is wrong, correct it here. The corrected text will be saved to the training dataset and used for deep-learning retraining.
-                                        </p>
-                                        <form method="post" novalidate data-processing-form>
-                                            {% csrf_token %}
-                                            <input type="hidden" name="action" value="save_correction">
-                                            {{ correction_form.image_id }}
-                                            <div class="mb-3">
-                                                <label for="{{ correction_form.corrected_text.id_for_label }}" class="form-label">
-                                                    Correct Text
-                                                </label>
-                                                {{ correction_form.corrected_text }}
-                                                {% if correction_form.corrected_text.errors %}
-                                                    <div class="text-danger small mt-1">{{ correction_form.corrected_text.errors|join:", " }}</div>
-                                                {% endif %}
-                                            </div>
-                                            <div class="form-check mb-3">
-                                                {{ correction_form.start_training }}
-                                                <label class="form-check-label" for="{{ correction_form.start_training.id_for_label }}">
-                                                    Start deep-learning retraining after saving this correction
-                                                </label>
-                                            </div>
-                                            {% if correction_form.non_field_errors %}
-                                                <div class="text-danger small mb-3">{{ correction_form.non_field_errors|join:", " }}</div>
-                                            {% endif %}
-                                            <button type="submit" class="btn btn-outline-success w-100" data-submit-label="Save Correction and Learn">
-                                                <span class="button-label">Save Correction and Learn</span>
-                                                <span class="spinner-border spinner-border-sm d-none" aria-hidden="true"></span>
-                                            </button>
-                                            <div class="processing-note d-none" aria-live="polite">
-                                                Saving the correction and updating the training dataset. Please wait.
-                                            </div>
-                                        </form>
-                                        {% if uploaded_image.user_corrected_text %}
-                                            <p class="small text-muted mt-3 mb-0">
-                                                Latest saved correction: <strong>{{ uploaded_image.user_corrected_text|truncatechars:80 }}</strong>
-                                            </p>
-                                        {% endif %}
-                                    </div>
-
-                                    {% if uploaded_image.raw_ocr_text and uploaded_image.raw_ocr_text != uploaded_image.predicted_text %}
-                                        <div class="prediction-box prediction-box-secondary mb-4">
-                                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                                <h3 class="h6 mb-0">Raw OCR Text</h3>
-                                                <span class="badge text-bg-secondary">Before NLP Correction</span>
-                                            </div>
-                                            <pre class="prediction-text mb-0">{{ uploaded_image.raw_ocr_text }}</pre>
-                                        </div>
-                                    {% endif %}
-                                {% else %}
-                                    <div class="empty-state mb-4">
-                                        <p class="mb-0">
-                                            No image uploaded yet. Use the form to upload a sample image.
-                                        </p>
-                                    </div>
-                                {% endif %}
-
-                                {% if training_summary and training_summary.status == 'completed' %}
-                                    <div class="prediction-box prediction-box-secondary mb-4">
-                                        <div class="d-flex justify-content-between align-items-center mb-2">
-                                            <h3 class="h5 mb-0">Latest Training Summary</h3>
-                                            <span class="badge text-bg-primary">{{ training_summary.dataset_profile }}</span>
-                                        </div>
-                                        <p class="mb-1"><strong>Mode:</strong> {{ training_summary.training_mode }}</p>
-                                        <p class="mb-1"><strong>Dataset:</strong> {{ training_summary.dataset_id }}</p>
-                                        <p class="mb-1"><strong>Output Model:</strong> {{ training_summary.output_dir }}</p>
-                                        <p class="mb-1"><strong>Train Samples:</strong> {{ training_summary.train_samples }}</p>
-                                        <p class="mb-1"><strong>Validation Samples:</strong> {{ training_summary.validation_samples }}</p>
-                                        <p class="mb-0"><strong>Epochs:</strong> {{ training_summary.epochs }}</p>
-                                    </div>
-                                    {% if training_summary.completed_runs %}
-                                        <div class="prediction-box prediction-box-secondary mb-4">
-                                            <h3 class="h6 mb-3">Completed Dataset Runs</h3>
-                                            {% for item in training_summary.completed_runs %}
-                                                <p class="mb-1"><strong>{{ item.dataset_profile }}</strong>: {{ item.train_samples }} train, {{ item.validation_samples }} validation, {{ item.epochs }} epochs</p>
-                                            {% endfor %}
-                                        </div>
-                                    {% endif %}
-                                {% endif %}
-
-                                <h3 class="h5 mb-3">Recent Uploads</h3>
-                                <div class="row g-3">
-                                    {% for item in recent_uploads %}
-                                        <div class="col-sm-6 col-md-4">
-                                            <div class="recent-card">
-                                                <img
-                                                    src="{{ item.image.url }}"
-                                                    alt="{{ item.title|default:'Uploaded image' }}"
-                                                    class="img-fluid recent-image"
-                                                >
-                                                <div class="pt-2">
-                                                    <p class="mb-1 fw-semibold text-truncate">
-                                                        {{ item.title|default:"Untitled Image" }}
-                                                    </p>
-                                                    <p class="small text-muted mb-0">
-                                                        {{ item.uploaded_at|date:"d M Y" }}
-                                                    </p>
-                                                    <p class="small text-muted mb-0">
-                                                        {{ item.get_ocr_engine_display }}
-                                                    </p>
-                                                    <p class="small mb-0 mt-1">
-                                                        <span class="prediction-light {% if item.is_gemini_prediction %}prediction-light-gemini{% else %}prediction-light-ocr{% endif %}"></span>
-                                                        {% if item.is_gemini_prediction %}Gemini{% else %}OCR{% endif %}
-                                                    </p>
-                                                    {% if item.predicted_text %}
-                                                        <p class="small text-success mb-0 mt-1">
-                                                            Prediction ready
-                                                        </p>
-                                                    {% endif %}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    {% empty %}
-                                        <div class="col-12">
-                                            <div class="empty-state">
-                                                <p class="mb-0">Recent uploads will appear here.</p>
-                                            </div>
-                                        </div>
-                                    {% endfor %}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+    <div class="workspace-shell">
+        <div class="workspace-header">
+            <div>
+                <h1 class="workspace-title mb-2">Handwritten Recognition Workspace</h1>
+                <p class="workspace-subtitle mb-0">
+                    Upload a handwritten image, inspect the preview, and refine the final text from one clean workspace.
+                </p>
             </div>
+        </div>
+
+        {% if messages %}
+            <div class="workspace-messages">
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} mb-0" role="alert">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <div class="workspace-grid">
+            <aside class="workspace-panel workspace-panel-controls">
+                <div class="panel-card panel-card-primary">
+                    <div class="panel-heading">
+                        <p class="panel-eyebrow">Step 1</p>
+                        <h2>Upload</h2>
+                        <p>Pick an image and choose how the OCR pipeline should treat it.</p>
+                    </div>
+
+                    <form method="post" enctype="multipart/form-data" novalidate data-processing-form>
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="upload">
+                        {{ form.ocr_engine }}
+
+                        <div class="workspace-field">
+                            <label for="{{ form.title.id_for_label }}" class="form-label">Image Title</label>
+                            {{ form.title }}
+                            {% if form.title.errors %}
+                                <div class="text-danger small mt-1">{{ form.title.errors|join:", " }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="workspace-field">
+                            <label for="{{ form.image.id_for_label }}" class="form-label">Handwritten Image</label>
+                            {{ form.image }}
+                            <div class="field-note">JPG, PNG, BMP, GIF, WEBP. Maximum size: 5 MB.</div>
+                            {% if form.image.errors %}
+                                <div class="text-danger small mt-1">{{ form.image.errors|join:", " }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="workspace-field">
+                            <label for="{{ form.extraction_mode.id_for_label }}" class="form-label">Extraction Mode</label>
+                            {{ form.extraction_mode }}
+                            <div class="field-note">Try full image, auto crop, or compare both and keep the stronger result.</div>
+                            {% if form.extraction_mode.errors %}
+                                <div class="text-danger small mt-1">{{ form.extraction_mode.errors|join:", " }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="workspace-field">
+                            <label for="{{ form.target_type.id_for_label }}" class="form-label">Target Type</label>
+                            {{ form.target_type }}
+                            <div class="field-note">Tell the pipeline whether this is a word, line, page, or mixed content.</div>
+                            {% if form.target_type.errors %}
+                                <div class="text-danger small mt-1">{{ form.target_type.errors|join:", " }}</div>
+                            {% endif %}
+                        </div>
+
+                        <button type="submit" class="btn btn-primary workspace-submit" data-submit-label="Extract Text">
+                            <span class="button-label">Extract Text</span>
+                            <span class="spinner-border spinner-border-sm d-none" aria-hidden="true"></span>
+                        </button>
+                        <div class="processing-note d-none" aria-live="polite">
+                            Processing image and generating prediction. Please wait.
+                        </div>
+                    </form>
+                </div>
+
+                <details class="panel-card panel-card-secondary workspace-details">
+                    <summary>
+                        <span>Custom Training Set</span>
+                        <span class="workspace-summary-meta">{{ custom_dataset_sample_count }} saved</span>
+                    </summary>
+                    <p class="details-copy">
+                        Add labeled handwriting samples so the local deep-learning model can adapt to your writing style.
+                    </p>
+                    <form method="post" enctype="multipart/form-data" novalidate data-processing-form>
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="add_training_samples">
+
+                        <div class="workspace-field">
+                            <label for="{{ custom_training_form.images.id_for_label }}" class="form-label">Training Images</label>
+                            {{ custom_training_form.images }}
+                            {% if custom_training_form.images.errors %}
+                                <div class="text-danger small mt-1">{{ custom_training_form.images.errors|join:", " }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="workspace-field">
+                            <label for="{{ custom_training_form.texts.id_for_label }}" class="form-label">Matching Labels</label>
+                            {{ custom_training_form.texts }}
+                            <div class="field-note">One line per image, in the same order.</div>
+                            {% if custom_training_form.texts.errors %}
+                                <div class="text-danger small mt-1">{{ custom_training_form.texts.errors|join:", " }}</div>
+                            {% endif %}
+                            {% if custom_training_form.non_field_errors %}
+                                <div class="text-danger small mt-1">{{ custom_training_form.non_field_errors|join:", " }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="form-check workspace-check">
+                            {{ custom_training_form.auto_segment }}
+                            <label class="form-check-label" for="{{ custom_training_form.auto_segment.id_for_label }}">
+                                Auto-split one page into separate text groups
+                            </label>
+                        </div>
+
+                        <button type="submit" class="btn btn-outline-secondary w-100" data-submit-label="Save Samples">
+                            <span class="button-label">Save Samples</span>
+                            <span class="spinner-border spinner-border-sm d-none" aria-hidden="true"></span>
+                        </button>
+                        <div class="processing-note d-none" aria-live="polite">
+                            Saving custom training images and labels. Please wait.
+                        </div>
+                    </form>
+                </details>
+
+                <details class="panel-card panel-card-secondary workspace-details">
+                    <summary>
+                        <span>Model Training</span>
+                        <span class="workspace-summary-meta">{{ training_summary.status|default:"idle" }}</span>
+                    </summary>
+                    <div class="training-compact">
+                        <p class="mb-2">
+                            <strong>Datasets:</strong> {{ recommended_training_setup.dataset_profiles|join:", " }}
+                        </p>
+                        <p class="mb-2">
+                            <strong>Preset:</strong> balanced training, {{ recommended_training_setup.epochs }} epochs
+                        </p>
+                    </div>
+
+                    <form method="post" novalidate data-processing-form>
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="train">
+                        <button type="submit" class="btn btn-outline-primary w-100" data-submit-label="Start Training">
+                            <span class="button-label">Start Training</span>
+                            <span class="spinner-border spinner-border-sm d-none" aria-hidden="true"></span>
+                        </button>
+                        <div class="processing-note d-none" aria-live="polite">
+                            Starting training job. Progress will appear below.
+                        </div>
+                    </form>
+
+                    <div class="training-status-mini" id="training-status-box">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="training-status-label">Status</span>
+                            <span class="badge text-bg-primary" id="training-status-badge">{{ training_summary.status|default:"idle" }}</span>
+                        </div>
+                        <p class="mb-1 small"><strong>Dataset:</strong> <span id="training-dataset">{{ training_summary.dataset_profile|default:"iam_line" }}</span></p>
+                        <p class="mb-2 small"><strong>Message:</strong> <span id="training-message">{{ training_summary.message|default:"No training started yet." }}</span></p>
+                        <div class="progress workspace-progress" role="progressbar" aria-label="Training progress" aria-valuemin="0" aria-valuemax="100">
+                            <div
+                                class="progress-bar"
+                                id="training-progress-bar"
+                                style="width: {{ training_summary.progress|default:0 }}%;"
+                            >
+                                {{ training_summary.progress|default:0 }}%
+                            </div>
+                        </div>
+                        <p class="mb-0 small mt-2"><strong>Mode:</strong> <span id="training-mode">{{ training_summary.training_mode|default:"balanced" }}</span></p>
+                    </div>
+                </details>
+            </aside>
+
+            <main class="workspace-panel workspace-panel-preview">
+                <div class="panel-card panel-card-preview">
+                    <div class="panel-heading panel-heading-tight">
+                        <p class="panel-eyebrow">Step 2</p>
+                        <h2>Preview</h2>
+                    </div>
+
+                    {% if uploaded_image %}
+                        <div class="preview-meta">
+                            <div>
+                                <span class="preview-meta-label">Uploaded</span>
+                                <strong>{{ uploaded_image.uploaded_at|date:"d M Y, h:i A" }}</strong>
+                            </div>
+                            <div>
+                                <span class="preview-meta-label">Mode</span>
+                                <strong>{{ latest_target_type }} / {{ latest_extraction_mode }}</strong>
+                            </div>
+                        </div>
+                        <div class="preview-stage">
+                            <img
+                                src="{{ uploaded_image.image.url }}"
+                                alt="Uploaded handwritten sample"
+                                class="preview-stage-image"
+                            >
+                        </div>
+                    {% else %}
+                        <div class="workspace-empty workspace-empty-large">
+                            <p class="mb-0">Upload a handwriting sample to see the preview here.</p>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="panel-card panel-card-secondary">
+                    <div class="panel-heading panel-heading-tight">
+                        <p class="panel-eyebrow">Recent</p>
+                        <h2>Recent Uploads</h2>
+                    </div>
+
+                    <div class="recent-upload-grid">
+                        {% for item in recent_uploads %}
+                            <article class="recent-upload-card">
+                                <img
+                                    src="{{ item.image.url }}"
+                                    alt="{{ item.title|default:'Uploaded image' }}"
+                                    class="recent-upload-image"
+                                >
+                                <div class="recent-upload-content">
+                                    <p class="recent-upload-title">{{ item.title|default:"Untitled Image" }}</p>
+                                    <p class="recent-upload-meta">{{ item.uploaded_at|date:"d M Y" }}</p>
+                                    {% if item.predicted_text %}
+                                        <p class="recent-upload-state">Prediction ready</p>
+                                    {% endif %}
+                                </div>
+                            </article>
+                        {% empty %}
+                            <div class="workspace-empty">
+                                <p class="mb-0">Recent uploads will appear here.</p>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </main>
+
+            <section class="workspace-panel workspace-panel-result">
+                <div class="panel-card panel-card-result">
+                    <div class="panel-heading">
+                        <p class="panel-eyebrow">Step 3</p>
+                        <h2>Result</h2>
+                        <p>Review the strongest text candidate and fix it if needed.</p>
+                    </div>
+
+                    {% if uploaded_image %}
+                        <div class="result-header-strip">
+                            <div>
+                                <span class="preview-meta-label">Source</span>
+                                <div class="result-source">
+                                    <span class="prediction-light {% if uploaded_image.is_gemini_prediction %}prediction-light-gemini{% else %}prediction-light-ocr{% endif %}"></span>
+                                    {% if uploaded_image.is_gemini_prediction %}Gemini{% else %}OCR{% endif %}
+                                </div>
+                            </div>
+                            <div>
+                                <span class="preview-meta-label">Engine</span>
+                                <strong>{{ uploaded_image.get_ocr_engine_display }}</strong>
+                            </div>
+                        </div>
+
+                        {% if uploaded_image.prediction_notes %}
+                            <div class="result-note">{{ uploaded_image.prediction_notes }}</div>
+                        {% endif %}
+
+                        <div class="result-block">
+                            <div class="result-block-header">
+                                <h3>Predicted Text</h3>
+                                <span class="result-badge">Best Candidate</span>
+                            </div>
+                            <pre class="prediction-text prediction-text-primary">{{ uploaded_image.predicted_text }}</pre>
+                        </div>
+
+                        {% if uploaded_image.raw_ocr_text and uploaded_image.raw_ocr_text != uploaded_image.predicted_text %}
+                            <div class="result-block result-block-muted">
+                                <div class="result-block-header">
+                                    <h3>Raw OCR Text</h3>
+                                    <span class="result-badge result-badge-muted">Before cleanup</span>
+                                </div>
+                                <pre class="prediction-text">{{ uploaded_image.raw_ocr_text }}</pre>
+                            </div>
+                        {% endif %}
+
+                        <div class="result-block result-block-muted">
+                            <div class="result-block-header">
+                                <h3>Fix Prediction</h3>
+                                {% if uploaded_image.correction_applied %}
+                                    <span class="result-badge result-badge-success">Saved for retraining</span>
+                                {% endif %}
+                            </div>
+                            <p class="field-note mb-3">
+                                Save the correct text so the training dataset and local deep-learning model can improve over time.
+                            </p>
+                            <form method="post" novalidate data-processing-form>
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="save_correction">
+                                {{ correction_form.image_id }}
+                                <div class="workspace-field">
+                                    <label for="{{ correction_form.corrected_text.id_for_label }}" class="form-label">Correct Text</label>
+                                    {{ correction_form.corrected_text }}
+                                    {% if correction_form.corrected_text.errors %}
+                                        <div class="text-danger small mt-1">{{ correction_form.corrected_text.errors|join:", " }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="form-check workspace-check">
+                                    {{ correction_form.start_training }}
+                                    <label class="form-check-label" for="{{ correction_form.start_training.id_for_label }}">
+                                        Retrain after saving this correction
+                                    </label>
+                                </div>
+                                {% if correction_form.non_field_errors %}
+                                    <div class="text-danger small mb-3">{{ correction_form.non_field_errors|join:", " }}</div>
+                                {% endif %}
+                                <button type="submit" class="btn btn-outline-success w-100" data-submit-label="Save Correction">
+                                    <span class="button-label">Save Correction</span>
+                                    <span class="spinner-border spinner-border-sm d-none" aria-hidden="true"></span>
+                                </button>
+                                <div class="processing-note d-none" aria-live="polite">
+                                    Saving the correction and updating the training dataset. Please wait.
+                                </div>
+                            </form>
+                        </div>
+                    {% else %}
+                        <div class="workspace-empty workspace-empty-large">
+                            <p class="mb-0">The final text result will appear here after you upload an image.</p>
+                        </div>
+                    {% endif %}
+
+                    {% if training_summary and training_summary.status == 'completed' %}
+                        <div class="result-block result-block-muted">
+                            <div class="result-block-header">
+                                <h3>Latest Training Summary</h3>
+                                <span class="result-badge result-badge-muted">{{ training_summary.dataset_profile }}</span>
+                            </div>
+                            <div class="training-summary-grid">
+                                <div><span>Train Samples</span><strong>{{ training_summary.train_samples }}</strong></div>
+                                <div><span>Validation</span><strong>{{ training_summary.validation_samples }}</strong></div>
+                                <div><span>Epochs</span><strong>{{ training_summary.epochs }}</strong></div>
+                                <div><span>Mode</span><strong>{{ training_summary.training_mode }}</strong></div>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </section>
         </div>
     </div>
     <script>

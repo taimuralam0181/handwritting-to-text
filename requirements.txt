@@ -1,3 +1,4 @@
 django==5.1.4
 Pillow==11.0.0
 pytesseract==0.3.13
+google-genai==1.31.0

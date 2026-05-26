@@ -100,6 +100,64 @@ body {
     padding: 0.75rem 1rem;
 }
 
+.btn.is-processing {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    opacity: 0.85;
+}
+
+.processing-note {
+    margin-top: 0.75rem;
+    font-size: 0.92rem;
+    color: #495057;
+}
+
+.prediction-light {
+    display: inline-block;
+    width: 0.7rem;
+    height: 0.7rem;
+    margin-right: 0.35rem;
+    border-radius: 999px;
+    vertical-align: middle;
+    box-shadow: 0 0 0.45rem rgba(0, 0, 0, 0.2);
+}
+
+.prediction-light-gemini {
+    background: #20c05c;
+    box-shadow: 0 0 0.55rem rgba(32, 192, 92, 0.55);
+}
+
+.prediction-light-ocr {
+    background: #dc3545;
+    box-shadow: 0 0 0.55rem rgba(220, 53, 69, 0.5);
+}
+
+.prediction-source-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.3rem 0.65rem;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+.prediction-source-chip-gemini {
+    background: #eaf9f0;
+    color: #146c43;
+}
+
+.prediction-source-chip-ocr {
+    background: #fdecef;
+    color: #a61e2f;
+}
+
+.prediction-note-text {
+    color: #7a4b00;
+}
+
 @media (max-width: 991.98px) {
     .hero-banner {
         padding: 1.5rem;

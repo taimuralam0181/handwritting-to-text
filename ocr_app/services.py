@@ -1,5 +1,6 @@
 from pathlib import Path
 import base64
+import io
 import json
 import os
 import re
@@ -9,7 +10,6 @@ from urllib import error, request
 import cv2
 import numpy as np
 import pytesseract
-import torch
 from PIL import Image
 from django.conf import settings
 from pytesseract import Output
@@ -83,6 +83,17 @@ def _resolve_tesseract_command():
         return discovered_cmd
 
     return ""
+
+
+def _get_torch_module():
+    """Import torch only when the local AI pipeline is actually used."""
+
+    try:
+        import torch
+    except Exception:
+        return None
+
+    return torch
 
 
 def _load_color_image(image_path: str):
@@ -493,6 +504,66 @@ def _apply_nlp_spell_correction(text: str) -> str:
     return corrected_text or text
 
 
+def _best_dictionary_match(phrase: str, *, min_score: int = 80) -> str:
+    """Return the closest custom dictionary term when the match is strong enough."""
+
+    normalized = _clean_text(phrase)
+    if not normalized:
+        return phrase
+
+    best_term = normalized
+    best_score = 0
+    for term in _get_custom_terms():
+        score = fuzz.ratio(normalized.lower(), term.lower())
+        if score > best_score:
+            best_term = term
+            best_score = score
+
+    return best_term if best_score >= min_score else phrase
+
+
+def _apply_dictionary_guided_correction(text: str, target_type: str = 'mixed') -> str:
+    """Use custom dictionary fuzzy matches to improve short OCR outputs."""
+
+    cleaned = _clean_text(text)
+    if not cleaned:
+        return cleaned
+
+    normalized_target = (target_type or 'mixed').strip().lower()
+    corrected_lines = []
+    for line in cleaned.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+
+        line_term_match = _best_dictionary_match(
+            stripped,
+            min_score=75 if normalized_target in {'word', 'line'} else 84,
+        )
+        if line_term_match != stripped:
+            corrected_lines.append(line_term_match)
+            continue
+
+        corrected_tokens = []
+        for token in stripped.split():
+            if not any(char.isalpha() for char in token):
+                corrected_tokens.append(token)
+                continue
+            if _is_custom_dictionary_term(token):
+                corrected_tokens.append(token)
+                continue
+            corrected_tokens.append(
+                _best_dictionary_match(
+                    token,
+                    min_score=72 if normalized_target in {'word', 'line'} else 82,
+                )
+            )
+        corrected_lines.append(" ".join(corrected_tokens))
+
+    corrected_text = _clean_text("\n".join(corrected_lines))
+    return corrected_text or cleaned
+
+
 def _normalize_bullet_prefix(line: str) -> str:
     """Turn noisy OCR bullet prefixes into a stable dash bullet."""
 
@@ -659,10 +730,80 @@ def _repetition_penalty(text: str) -> float:
     return ((1.0 - unique_ratio) * 20.0) + (repeated_zero_like * 1.5)
 
 
+def _gibberish_penalty(text: str) -> float:
+    """Penalize noisy OCR outputs that are mostly broken symbols or fragments."""
+
+    cleaned = _clean_text(text)
+    if not cleaned:
+        return 30.0
+
+    chars = [char for char in cleaned if not char.isspace()]
+    if not chars:
+        return 30.0
+
+    symbol_count = sum(not char.isalnum() for char in chars)
+    digit_count = sum(char.isdigit() for char in chars)
+    alpha_count = sum(char.isalpha() for char in chars)
+    symbol_ratio = symbol_count / len(chars)
+
+    tokens = cleaned.split()
+    single_char_tokens = sum(len(token) == 1 for token in tokens)
+    odd_tokens = sum(bool(re.search(r"[^A-Za-z0-9][A-Za-z0-9]|[A-Za-z0-9][^A-Za-z0-9]", token)) for token in tokens)
+
+    penalty = 0.0
+    if symbol_ratio > 0.18:
+        penalty += symbol_ratio * 40.0
+    if tokens:
+        penalty += (single_char_tokens / len(tokens)) * 14.0
+        penalty += (odd_tokens / len(tokens)) * 10.0
+    if alpha_count and digit_count and digit_count / max(alpha_count, 1) > 0.35:
+        penalty += 6.0
+    if alpha_count < 3 and len(tokens) >= 2:
+        penalty += 8.0
+
+    return penalty
+
+
 def _overall_prediction_score(text: str) -> float:
     """Combined score used to compare OCR/AI candidate outputs."""
 
-    return _score_text_quality(text) - _repetition_penalty(text)
+    return _score_text_quality(text) - _repetition_penalty(text) - _gibberish_penalty(text)
+
+
+def _select_best_text_candidate(candidates: list[str], target_type: str = 'mixed') -> str:
+    """Choose the strongest text across raw and corrected candidate outputs."""
+
+    normalized_target = (target_type or 'mixed').strip().lower()
+    best_text = ""
+    best_score = -1_000.0
+
+    for candidate in candidates:
+        cleaned = _clean_text(candidate)
+        if not cleaned:
+            continue
+
+        variants = [cleaned]
+        pattern_variant = _apply_pattern_aware_correction(cleaned)
+        dict_variant = _apply_dictionary_guided_correction(pattern_variant, normalized_target)
+        nlp_variant = _apply_nlp_spell_correction(dict_variant)
+        variants.extend([pattern_variant, dict_variant, nlp_variant])
+
+        for variant in variants:
+            final_variant = _clean_text(variant)
+            if not final_variant:
+                continue
+            score = _overall_prediction_score(final_variant) + _target_type_bonus(final_variant, normalized_target)
+            if final_variant != cleaned:
+                score += 1.25
+            if final_variant == dict_variant:
+                score += 1.5
+            if final_variant == nlp_variant:
+                score += 0.75
+            if score > best_score:
+                best_text = final_variant
+                best_score = score
+
+    return best_text
 
 
 def _word_candidate_bonus(text: str) -> float:
@@ -699,6 +840,56 @@ def _is_plausible_word_prediction(text: str) -> bool:
     alpha_count = sum(char.isalpha() for char in cleaned)
     digit_count = sum(char.isdigit() for char in cleaned)
     return alpha_count >= 3 and digit_count == 0
+
+
+def _target_type_bonus(text: str, target_type: str) -> float:
+    """Reward candidates that match the user-selected target shape."""
+
+    cleaned = _clean_text(text)
+    normalized_target = (target_type or 'mixed').strip().lower()
+    if not cleaned:
+        return 0.0
+
+    if normalized_target == 'word':
+        return _word_candidate_bonus(cleaned)
+
+    if normalized_target == 'line':
+        if '\n' in cleaned:
+            return -4.0
+        token_count = len(cleaned.split())
+        return 8.0 if token_count >= 2 else 2.0
+
+    if normalized_target == 'page':
+        line_count = len(cleaned.splitlines())
+        return min(line_count * 2.5, 10.0) if line_count > 1 else -2.0
+
+    if normalized_target == 'mixed':
+        line_count = len(cleaned.splitlines())
+        token_count = len(cleaned.split())
+        if line_count > 1:
+            return min(line_count * 1.8, 8.0)
+        if token_count <= 2:
+            return 4.0
+        return 2.0
+
+    return 0.0
+
+
+def _looks_too_short_for_target(text: str, target_type: str) -> bool:
+    """Reject obviously undersized predictions for line/page oriented targets."""
+
+    cleaned = _clean_text(text)
+    normalized_target = (target_type or 'mixed').strip().lower()
+    if not cleaned:
+        return True
+
+    if normalized_target == 'line':
+        return len(cleaned.split()) < 2 and len(cleaned) < 8
+
+    if normalized_target == 'page':
+        return "\n" not in cleaned and len(cleaned.split()) < 4
+
+    return False
 
 
 def _normalize_alpha_sequence_line(text: str) -> str:
@@ -1002,6 +1193,8 @@ def _load_trocr_model(model_dir: Path):
         return None, None
 
     os.environ.setdefault("TRANSFORMERS_NO_TF", "1")
+    if _get_torch_module() is None:
+        return None, None
 
     try:
         from transformers import TrOCRProcessor, VisionEncoderDecoderModel
@@ -1032,6 +1225,10 @@ def _predict_short_word_with_base_model(image_path: str) -> str:
 
     processor, model = _load_trocr_model(BASE_WORD_MODEL_DIR)
     if processor is None or model is None:
+        return ""
+
+    torch = _get_torch_module()
+    if torch is None:
         return ""
 
     pixel_values = processor(images=rgb_image, return_tensors="pt").pixel_values
@@ -1124,6 +1321,10 @@ def _predict_sparse_text_clusters_with_base_model(image_path: str) -> str:
     if processor is None or model is None:
         return ""
 
+    torch = _get_torch_module()
+    if torch is None:
+        return ""
+
     predictions = []
     image_height, image_width = enlarged.shape[:2]
     for x, y, w, h in boxes:
@@ -1148,8 +1349,47 @@ def _predict_sparse_text_clusters_with_base_model(image_path: str) -> str:
     return _clean_text("\n".join(predictions))
 
 
+def _build_gemini_cluster_candidates(image_path: str):
+    """Build cropped Gemini candidates from isolated handwritten text clusters."""
+
+    grayscale_candidates = _prepare_grayscale_candidates(image_path)
+    if not grayscale_candidates:
+        return []
+
+    basic_gray = grayscale_candidates[0][1]
+    cropped_image = _crop_text_region(basic_gray)
+    enlarged, boxes = _detect_sparse_text_boxes(cropped_image)
+    if not boxes:
+        return []
+
+    candidates = []
+    image_height, image_width = enlarged.shape[:2]
+    for index, (x, y, w, h) in enumerate(boxes, start=1):
+        pad = 25
+        roi = enlarged[max(y - pad, 0):min(y + h + pad, image_height), max(x - pad, 0):min(x + w + pad, image_width)]
+        if roi.size == 0:
+            continue
+
+        normalized_roi = _crop_primary_foreground_region(roi)
+        if normalized_roi is None or normalized_roi.size == 0:
+            normalized_roi = roi
+
+        candidates.append(
+            (
+                f"cluster_{index}",
+                Image.fromarray(normalized_roi).convert('RGB'),
+            )
+        )
+
+    return candidates
+
+
 def _predict_with_local_ai_model(uploaded_image) -> str:
     """Predict handwriting text with a locally stored TrOCR-style model."""
+
+    torch = _get_torch_module()
+    if torch is None:
+        return "Local AI OCR is unavailable because PyTorch is not installed correctly on this machine."
 
     try:
         grayscale_candidates = _prepare_grayscale_candidates(uploaded_image.image.path)
@@ -1203,7 +1443,7 @@ def _predict_with_local_ai_model(uploaded_image) -> str:
     return _clean_text("\n".join(line_predictions))
 
 
-def _predict_with_hybrid_local_ai(uploaded_image) -> str:
+def _predict_with_hybrid_local_ai(uploaded_image, target_type: str = 'mixed') -> str:
     """
     Use both local OCR and the local AI model, then keep the stronger result.
 
@@ -1234,15 +1474,24 @@ def _predict_with_hybrid_local_ai(uploaded_image) -> str:
         return local_text
 
     ai_text = _predict_with_local_ai_model(uploaded_image)
+    if ai_text.startswith("Local AI OCR is unavailable"):
+        return local_text
+
+    if _looks_too_short_for_target(local_text, target_type) and not _looks_too_short_for_target(ai_text, target_type):
+        return ai_text
+
     if _is_plausible_word_prediction(ai_text) and not _is_plausible_word_prediction(local_text):
         return ai_text
 
-    sparse_score = _overall_prediction_score(sparse_cluster_text) if sparse_cluster_text else -1.0
-    if sparse_cluster_text and sparse_score > max(_overall_prediction_score(local_text), _overall_prediction_score(ai_text)):
+    sparse_score = (_overall_prediction_score(sparse_cluster_text) + _target_type_bonus(sparse_cluster_text, target_type)) if sparse_cluster_text else -1.0
+    if sparse_cluster_text and sparse_score > max(
+        _overall_prediction_score(local_text) + _target_type_bonus(local_text, target_type),
+        _overall_prediction_score(ai_text) + _target_type_bonus(ai_text, target_type),
+    ):
         return sparse_cluster_text
 
-    ai_score = _overall_prediction_score(ai_text)
-    local_score = _overall_prediction_score(local_text)
+    ai_score = _overall_prediction_score(ai_text) + _target_type_bonus(ai_text, target_type)
+    local_score = _overall_prediction_score(local_text) + _target_type_bonus(local_text, target_type)
     if short_word_image:
         ai_score += _word_candidate_bonus(ai_text)
         local_score += _word_candidate_bonus(local_text)
@@ -1252,7 +1501,7 @@ def _predict_with_hybrid_local_ai(uploaded_image) -> str:
     return ai_text
 
 
-def _predict_with_api_model(uploaded_image) -> str:
+def _predict_with_api_model(uploaded_image, extraction_mode: str = 'both', target_type: str = 'mixed', api_key: str = '', api_model: str = '') -> str:
     """
     Send the uploaded image to an external OCR API.
 
@@ -1263,18 +1512,27 @@ def _predict_with_api_model(uploaded_image) -> str:
     - {"output": "..."}
     """
 
-    if not settings.OCR_API_KEY:
+    effective_api_key = (api_key or settings.OCR_API_KEY or '').strip()
+    effective_api_model = (api_model or settings.OCR_API_MODEL or 'gemini-2.0-flash').strip()
+
+    if not effective_api_key:
         return "API OCR key is missing. Set OCR_API_KEY in your environment settings."
 
     # If no generic API URL is configured, fall back to the Gemini SDK flow.
     if not settings.OCR_API_URL:
-        return _predict_with_gemini_model(uploaded_image)
+        return _predict_with_gemini_model(
+            uploaded_image,
+            extraction_mode=extraction_mode,
+            target_type=target_type,
+            api_key=effective_api_key,
+            api_model=effective_api_model,
+        )
 
     with open(uploaded_image.image.path, 'rb') as image_file:
         image_base64 = base64.b64encode(image_file.read()).decode('utf-8')
 
     payload = {
-        'model': settings.OCR_API_MODEL,
+        'model': effective_api_model,
         'file_name': Path(uploaded_image.image.name).name,
         'image_base64': image_base64,
     }
@@ -1284,7 +1542,7 @@ def _predict_with_api_model(uploaded_image) -> str:
         data=json.dumps(payload).encode('utf-8'),
         headers={
             'Content-Type': 'application/json',
-            'Authorization': f'Bearer {settings.OCR_API_KEY}',
+            'Authorization': f'Bearer {effective_api_key}',
         },
         method='POST',
     )
@@ -1307,16 +1565,127 @@ def _predict_with_api_model(uploaded_image) -> str:
     return "API OCR did not return readable text."
 
 
-def _predict_with_gemini_model(uploaded_image) -> str:
-    """Run handwriting OCR with Gemini, preferring a cleaned document image."""
+def _encode_multipart_formdata(fields: dict[str, str], file_field_name: str, file_name: str, file_bytes: bytes, content_type: str) -> tuple[bytes, str]:
+    """Build a multipart/form-data request body for OCR.space uploads."""
+
+    boundary = f"----OCRSpaceBoundary{os.urandom(8).hex()}"
+    lines: list[bytes] = []
+
+    for key, value in fields.items():
+        lines.extend(
+            [
+                f"--{boundary}".encode("utf-8"),
+                f'Content-Disposition: form-data; name="{key}"'.encode("utf-8"),
+                b"",
+                str(value).encode("utf-8"),
+            ]
+        )
+
+    lines.extend(
+        [
+            f"--{boundary}".encode("utf-8"),
+            f'Content-Disposition: form-data; name="{file_field_name}"; filename="{file_name}"'.encode("utf-8"),
+            f"Content-Type: {content_type}".encode("utf-8"),
+            b"",
+            file_bytes,
+            f"--{boundary}--".encode("utf-8"),
+            b"",
+        ]
+    )
+
+    return b"\r\n".join(lines), boundary
+
+
+def _predict_with_ocr_space(uploaded_image, target_type: str = 'mixed') -> str:
+    """Use the free OCR.space API as a hidden cloud OCR fallback."""
+
+    api_url = (settings.OCR_SPACE_API_URL or '').strip()
+    api_key = (settings.OCR_SPACE_API_KEY or 'helloworld').strip()
+    if not api_url or not api_key:
+        return "OCR.space is not configured."
+
+    image_path = Path(uploaded_image.image.path)
+    try:
+        file_bytes = image_path.read_bytes()
+    except OSError as exc:
+        return f"OCR.space file read failed: {exc}"
+
+    fields = {
+        'language': 'eng' if (target_type or 'mixed') != 'mixed' else 'auto',
+        'OCREngine': '3',
+        'scale': 'true',
+        'isTable': 'true' if (target_type or 'mixed') == 'page' else 'false',
+        'detectOrientation': 'true',
+    }
+    body, boundary = _encode_multipart_formdata(
+        fields,
+        'file',
+        image_path.name,
+        file_bytes,
+        'application/octet-stream',
+    )
+    req = request.Request(
+        api_url,
+        data=body,
+        headers={
+            'apikey': api_key,
+            'Content-Type': f'multipart/form-data; boundary={boundary}',
+        },
+        method='POST',
+    )
 
     try:
-        import google.generativeai as genai
-    except ImportError:
-        return "Gemini SDK is not installed. Install google-generativeai to use API OCR."
+        with request.urlopen(req, timeout=settings.OCR_API_TIMEOUT) as response:
+            response_data = json.loads(response.read().decode('utf-8'))
+    except error.HTTPError as exc:
+        return f"OCR.space request failed with HTTP {exc.code}."
+    except error.URLError as exc:
+        return f"OCR.space connection failed: {exc.reason}"
+    except Exception as exc:
+        return f"OCR.space processing failed: {exc}"
 
-    model_name = settings.OCR_API_MODEL or 'gemini-1.5-flash'
-    prompt = """
+    if response_data.get('IsErroredOnProcessing'):
+        error_message = response_data.get('ErrorMessage') or response_data.get('ErrorDetails') or 'OCR.space failed.'
+        if isinstance(error_message, list):
+            error_message = ' '.join(str(item) for item in error_message if item)
+        return f"OCR.space error: {error_message}"
+
+    parsed_results = response_data.get('ParsedResults') or []
+    parsed_texts = []
+    for item in parsed_results:
+        parsed_text = _clean_text(item.get('ParsedText', ''))
+        if parsed_text:
+            parsed_texts.append(parsed_text)
+
+    if parsed_texts:
+        return _clean_text('\n'.join(parsed_texts))
+
+    return "OCR.space did not return readable text."
+
+
+def _predict_with_gemini_model(uploaded_image, extraction_mode: str = 'both', target_type: str = 'mixed', api_key: str = '', api_model: str = '') -> str:
+    """Run handwriting OCR with Gemini across full-image and auto-cropped candidates."""
+
+    try:
+        from google import genai
+        from google.genai import types
+    except ImportError:
+        return "Gemini SDK is not installed. Install google-genai to use API OCR."
+
+    effective_api_key = (api_key or settings.OCR_API_KEY or '').strip()
+    model_name = (api_model or settings.OCR_API_MODEL or 'gemini-2.0-flash').strip()
+    simple_page_prompt = """
+Read all handwritten text in this image exactly as written.
+
+Rules:
+- Return only the handwritten text.
+- Keep the original line order.
+- Do not add headings, labels, or explanations.
+- Do not summarize.
+- If a small part is unclear, use [unclear].
+- If no readable text is present, return exactly: Not specified
+""".strip()
+    general_prompt = """
 Extract text from this handwritten image.
 
 Use EXACT format with this section header:
@@ -1342,37 +1711,170 @@ If no readable text is found, return exactly:
     EXTRACTED TEXT:
 Not specified
 """.strip()
+    short_word_prompt = """
+Read this handwritten image carefully.
+
+This image is expected to contain a single handwritten word or a very short phrase.
+
+Rules:
+- Return only the handwritten word or short phrase.
+- Do not add headings.
+- Do not add explanations.
+- Do not add punctuation unless it is clearly visible.
+- If one part is unclear, use [unclear].
+- If nothing readable is present, return exactly: Not specified
+""".strip()
+    single_line_prompt = """
+Read this handwritten image carefully.
+
+This image is expected to contain a single handwritten line.
+
+Rules:
+- Return only that line.
+- Keep word order exactly as written.
+- Do not add headings or explanations.
+- If one small part is unclear, use [unclear].
+- If no readable line is present, return exactly: Not specified
+""".strip()
 
     try:
-        genai.configure(api_key=settings.OCR_API_KEY)
-        model = genai.GenerativeModel(model_name)
+        client = genai.Client(api_key=effective_api_key)
     except Exception as exc:
         return f"Gemini OCR processing failed: {exc}"
 
-    gemini_images = []
     try:
-        processed_gray = _prepare_document_grayscale(uploaded_image.image.path)
-        gemini_images.append(Image.fromarray(processed_gray).convert('RGB'))
+        grayscale_candidates = _prepare_grayscale_candidates(uploaded_image.image.path)
     except Exception:
-        pass
+        grayscale_candidates = []
+
+    normalized_mode = (extraction_mode or 'both').strip().lower()
+    normalized_target = (target_type or 'mixed').strip().lower()
+    prefer_word_mode = normalized_target == 'word'
+    prefer_line_mode = normalized_target == 'line'
+    gemini_candidates: list[tuple[str, str, bytes, str]] = []
+    debug_response = ""
+    candidate_errors = []
 
     try:
         with Image.open(uploaded_image.image.path) as pil_image:
-            gemini_images.append(pil_image.convert('RGB').copy())
+            direct_prompt = simple_page_prompt
+            if prefer_word_mode:
+                direct_prompt = short_word_prompt
+            elif prefer_line_mode:
+                direct_prompt = single_line_prompt
+            original_rgb = pil_image.convert('RGB')
+            original_bytes_io = io.BytesIO()
+            original_rgb.save(original_bytes_io, format='PNG')
+            gemini_candidates.append(
+                (
+                    "original_rgb_direct",
+                    direct_prompt,
+                    original_bytes_io.getvalue(),
+                    'image/png',
+                )
+            )
     except Exception as exc:
-        if not gemini_images:
+        debug_response = f"Could not open original image: {exc}"
+
+    for variant_name, gray_image in grayscale_candidates:
+        text_crop = _crop_text_region(gray_image)
+        if normalized_target == 'mixed' and _is_short_word_image(_crop_primary_foreground_region(text_crop)):
+            prefer_word_mode = True
+
+        if normalized_mode in {'both', 'full'}:
+            full_bytes = cv2.imencode('.png', gray_image)[1].tobytes()
+            gemini_candidates.append(
+                (
+                    f"{variant_name}_full",
+                    single_line_prompt if prefer_line_mode else general_prompt,
+                    full_bytes,
+                    'image/png',
+                )
+            )
+
+        cropped_variant = _crop_primary_foreground_region(text_crop) if prefer_word_mode else text_crop
+        if normalized_mode in {'both', 'crop'} and cropped_variant is not None and cropped_variant.size:
+            crop_prompt = general_prompt
+            if prefer_word_mode:
+                crop_prompt = short_word_prompt
+            elif prefer_line_mode:
+                crop_prompt = single_line_prompt
+            gemini_candidates.append(
+                (
+                    f"{variant_name}_crop",
+                    crop_prompt,
+                    cv2.imencode('.png', cropped_variant)[1].tobytes(),
+                    'image/png',
+                )
+            )
+
+    if normalized_mode in {'both', 'crop'} and normalized_target in {'mixed', 'word'}:
+        try:
+            for cluster_name, cluster_image in _build_gemini_cluster_candidates(uploaded_image.image.path):
+                cluster_bytes_io = io.BytesIO()
+                cluster_image.save(cluster_bytes_io, format='PNG')
+                gemini_candidates.append(
+                    (
+                        cluster_name,
+                        short_word_prompt if prefer_word_mode or normalized_target == 'word' else general_prompt,
+                        cluster_bytes_io.getvalue(),
+                        'image/png',
+                    )
+                )
+        except Exception:
+            pass
+
+    try:
+        with Image.open(uploaded_image.image.path) as pil_image:
+            if normalized_mode in {'both', 'full'}:
+                original_prompt = general_prompt
+                if prefer_word_mode:
+                    original_prompt = short_word_prompt
+                elif prefer_line_mode:
+                    original_prompt = single_line_prompt
+                original_rgb = pil_image.convert('RGB')
+                original_bytes_io = io.BytesIO()
+                original_rgb.save(original_bytes_io, format='PNG')
+                gemini_candidates.append(
+                    (
+                        "original_rgb",
+                        original_prompt,
+                        original_bytes_io.getvalue(),
+                        'image/png',
+                    )
+                )
+    except Exception as exc:
+        if not gemini_candidates:
             return f"Gemini OCR processing failed: {exc}"
+
+    if not gemini_candidates:
+        return "Gemini OCR processing failed: no usable image candidate could be prepared."
 
     best_text = ""
     best_score = -1.0
 
-    for gemini_image in gemini_images:
+    for _candidate_name, prompt, gemini_image_bytes, mime_type in gemini_candidates:
         try:
-            response = model.generate_content([prompt, gemini_image])
-        except Exception:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=[
+                    types.Part.from_bytes(data=gemini_image_bytes, mime_type=mime_type),
+                    prompt,
+                ],
+            )
+        except Exception as exc:
+            candidate_errors.append(f"{_candidate_name}: {exc}")
             continue
 
         text = getattr(response, 'text', '') or ''
+        if text and not debug_response:
+            debug_response = _clean_text(text)[:180]
+        elif not text:
+            finish_reason = getattr(getattr(response, 'candidates', [None])[0], 'finish_reason', None)
+            if finish_reason is not None:
+                candidate_errors.append(f"{_candidate_name}: empty response (finish_reason={finish_reason})")
+            else:
+                candidate_errors.append(f"{_candidate_name}: empty response")
         if 'EXTRACTED TEXT:' in text:
             text = text.split('EXTRACTED TEXT:', 1)[1].strip()
 
@@ -1380,7 +1882,7 @@ Not specified
         if not cleaned_text:
             continue
 
-        score = _overall_prediction_score(cleaned_text)
+        score = _overall_prediction_score(cleaned_text) + _target_type_bonus(cleaned_text, normalized_target)
         if cleaned_text.lower() == 'not specified':
             score = -0.5
 
@@ -1391,6 +1893,10 @@ Not specified
     if best_text:
         return best_text
 
+    if debug_response:
+        return f"Gemini OCR did not return readable text. Raw response: {debug_response}"
+    if candidate_errors:
+        return f"Gemini OCR did not return readable text. Debug: {_clean_text(' | '.join(candidate_errors))[:220]}"
     return "Gemini OCR did not return readable text."
 
 
@@ -1411,56 +1917,92 @@ def _looks_like_api_error(text: str) -> bool:
         or lowered.startswith('api ocr connection failed')
         or lowered.startswith('api ocr processing failed')
         or lowered.startswith('api ocr did not return readable text')
+        or lowered.startswith('ocr.space is not configured')
+        or lowered.startswith('ocr.space request failed')
+        or lowered.startswith('ocr.space connection failed')
+        or lowered.startswith('ocr.space processing failed')
+        or lowered.startswith('ocr.space error')
+        or lowered.startswith('ocr.space did not return readable text')
     )
 
 
-def _predict_with_smart_pipeline(uploaded_image) -> str:
+def _predict_with_smart_pipeline(uploaded_image, extraction_mode: str = 'both', target_type: str = 'mixed', api_key: str = '', api_model: str = ''):
     """Use Gemini/API first and keep local OCR as a fallback safety net."""
 
-    api_text = _predict_with_api_model(uploaded_image)
-    local_text = _predict_with_hybrid_local_ai(uploaded_image)
+    api_text = _predict_with_ocr_space(uploaded_image, target_type=target_type)
+    local_text = _predict_with_hybrid_local_ai(uploaded_image, target_type=target_type)
+    api_source = 'api'
+    local_source = 'local'
 
     if _looks_like_api_error(api_text):
-        return local_text
+        best_local = _select_best_text_candidate([local_text], target_type=target_type) or local_text
+        return best_local, local_source, api_text
 
-    if api_text.strip() and api_text.strip().lower() != 'not specified':
-        return api_text
+    candidate_map = {
+        api_source: api_text,
+        local_source: local_text,
+    }
+    best_source = local_source
+    best_text = ""
+    best_score = -1_000.0
 
-    api_score = _overall_prediction_score(api_text)
-    local_score = _overall_prediction_score(local_text)
+    for source_name, candidate_text in candidate_map.items():
+        selected_candidate = _select_best_text_candidate([candidate_text], target_type=target_type)
+        if not selected_candidate:
+            continue
+        score = _overall_prediction_score(selected_candidate) + _target_type_bonus(selected_candidate, target_type)
+        if score > best_score:
+            best_score = score
+            best_text = selected_candidate
+            best_source = source_name
 
-    if local_score > api_score:
-        return local_text
+    if not best_text:
+        return local_text, local_source, 'No strong cloud result was available, so local OCR was used.'
 
-    return api_text
+    if best_source == local_source and api_text.strip():
+        return best_text, local_source, 'Free cloud OCR returned a weaker result than local OCR for this image.'
+
+    return best_text, best_source, ''
 
 
-def predict_handwritten_text(uploaded_image, ocr_engine: str) -> str:
+def predict_handwritten_text(uploaded_image, ocr_engine: str, extraction_mode: str = 'both', target_type: str = 'mixed', api_key: str = '', api_model: str = ''):
     """Route OCR prediction through either local Tesseract or an API model."""
 
     if ocr_engine == 'smart':
-        return _predict_with_smart_pipeline(uploaded_image)
+        return _predict_with_smart_pipeline(
+            uploaded_image,
+            extraction_mode=extraction_mode,
+            target_type=target_type,
+            api_key=api_key,
+            api_model=api_model,
+        )
 
     if ocr_engine == 'ai_local':
-        return _predict_with_hybrid_local_ai(uploaded_image)
+        return _predict_with_hybrid_local_ai(uploaded_image, target_type=target_type), 'local_ai', ''
 
     if ocr_engine == 'api':
-        return _predict_with_api_model(uploaded_image)
+        return _predict_with_api_model(
+            uploaded_image,
+            extraction_mode=extraction_mode,
+            target_type=target_type,
+            api_key=api_key,
+            api_model=api_model,
+        ), ('gemini' if not settings.OCR_API_URL else 'api'), ''
 
-    return _predict_with_local_ocr(uploaded_image)
+    return _predict_with_local_ocr(uploaded_image), 'local', ''
 
 
-def extract_and_correct_text(uploaded_image, ocr_engine: str):
+def extract_and_correct_text(uploaded_image, ocr_engine: str, extraction_mode: str = 'both', target_type: str = 'mixed', api_key: str = '', api_model: str = ''):
     """Return both raw OCR text and NLP-corrected final text."""
 
-    raw_text = predict_handwritten_text(uploaded_image, ocr_engine)
-    pattern_text = _apply_pattern_aware_correction(raw_text)
+    raw_text, prediction_source, prediction_notes = predict_handwritten_text(
+        uploaded_image,
+        ocr_engine,
+        extraction_mode=extraction_mode,
+        target_type=target_type,
+        api_key=api_key,
+        api_model=api_model,
+    )
+    corrected_text = _select_best_text_candidate([raw_text], target_type=target_type) or raw_text
 
-    if ocr_engine == 'local':
-        corrected_text = _apply_nlp_spell_correction(pattern_text)
-        if _overall_prediction_score(corrected_text) < _overall_prediction_score(pattern_text):
-            corrected_text = pattern_text
-    else:
-        corrected_text = pattern_text
-
-    return raw_text, corrected_text
+    return raw_text, corrected_text, prediction_source, prediction_notes

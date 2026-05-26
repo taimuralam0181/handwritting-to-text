@@ -127,8 +127,10 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # Keep these empty if you want to use only local Tesseract OCR.
 OCR_API_URL = os.environ.get('OCR_API_URL', '')
 OCR_API_KEY = os.environ.get('OCR_API_KEY', '')
-OCR_API_MODEL = os.environ.get('OCR_API_MODEL', '')
+OCR_API_MODEL = os.environ.get('OCR_API_MODEL', 'gemini-2.0-flash')
 OCR_API_TIMEOUT = int(os.environ.get('OCR_API_TIMEOUT', '60'))
+OCR_SPACE_API_URL = os.environ.get('OCR_SPACE_API_URL', 'https://api.ocr.space/parse/image')
+OCR_SPACE_API_KEY = os.environ.get('OCR_SPACE_API_KEY', 'helloworld')
 OCR_TESSERACT_CMD = os.environ.get('OCR_TESSERACT_CMD', '')
 OCR_LOCAL_MODEL_ID = os.environ.get('OCR_LOCAL_MODEL_ID', 'microsoft/trocr-small-handwritten')
 OCR_LOCAL_MODEL_DIR = os.environ.get('OCR_LOCAL_MODEL_DIR', str(BASE_DIR / 'local_models' / 'trocr-small-handwritten'))

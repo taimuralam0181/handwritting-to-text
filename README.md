@@ -91,12 +91,14 @@ The app now tries these options automatically:
 
 If you want to use an external API-based OCR model, set these environment variables before running the server.
 
-For Gemini SDK usage, you only need:
+For Gemini SDK usage, install the default requirements and then set:
 
 ```bash
 set OCR_API_KEY=your-gemini-api-key
-set OCR_API_MODEL=gemini-1.5-flash
+set OCR_API_MODEL=gemini-2.0-flash
 ```
+
+If `OCR_API_MODEL` is not set, the project now defaults to `gemini-2.0-flash`.
 
 For a custom HTTP OCR endpoint, set:
 

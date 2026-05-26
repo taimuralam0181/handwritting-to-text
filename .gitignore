@@ -7,7 +7,12 @@ venv/
 env/
 
 # Local training artifacts and large files
-datasets/
+datasets/*
+!datasets/handwriting_dataset.csv
+!datasets/images/
+!datasets/images/**
+!datasets/incoming_samples/
+!datasets/incoming_samples/**
 local_models/
 media/
 

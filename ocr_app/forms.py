@@ -15,6 +15,7 @@ class ImageUploadForm(forms.ModelForm):
         ('full', 'Use full image'),
     ]
     TARGET_TYPE_CHOICES = [
+        ('auto', 'Auto Detect (Recommended)'),
         ('mixed', 'Mixed Text'),
         ('word', 'Single Word'),
         ('line', 'Single Line'),
@@ -39,7 +40,7 @@ class ImageUploadForm(forms.ModelForm):
         )
         self.fields['target_type'] = forms.ChoiceField(
             choices=self.TARGET_TYPE_CHOICES,
-            initial='mixed',
+            initial='auto',
             widget=forms.Select(
                 attrs={
                     'class': 'form-select',

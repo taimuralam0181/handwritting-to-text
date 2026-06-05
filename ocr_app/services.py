@@ -996,6 +996,72 @@ def _is_short_word_image(gray_image) -> bool:
     return (width * height) < 220_000 and 1.5 <= aspect_ratio <= 8.5
 
 
+def _estimate_word_group_count(gray_image) -> int:
+    """Estimate how many horizontally separated word groups appear in a crop."""
+
+    if gray_image is None or not gray_image.size:
+        return 0
+
+    blurred = cv2.GaussianBlur(gray_image, (3, 3), 0)
+    _, binary_inv = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    kernel_width = max(9, min(35, int(gray_image.shape[1] * 0.035)))
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_width, 3))
+    grouped = cv2.dilate(binary_inv, kernel, iterations=1)
+    contours, _ = cv2.findContours(grouped, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    groups = 0
+    for contour in contours:
+        _, _, width, height = cv2.boundingRect(contour)
+        if width * height >= 80 and width >= 8 and height >= 6:
+            groups += 1
+    return groups
+
+
+def detect_target_type(uploaded_image) -> str:
+    """Classify an upload as a word, line, page, or mixed text layout."""
+
+    try:
+        grayscale_candidates = _prepare_grayscale_candidates(uploaded_image.image.path)
+    except Exception:
+        return 'mixed'
+
+    if not grayscale_candidates:
+        return 'mixed'
+
+    gray_image = grayscale_candidates[0][1]
+    text_crop = _crop_text_region(gray_image)
+    if text_crop is None or not text_crop.size:
+        return 'mixed'
+
+    line_images = _segment_lines(text_crop)
+    line_count = len(line_images)
+
+    try:
+        _, sparse_boxes = _detect_sparse_text_boxes(text_crop)
+    except Exception:
+        sparse_boxes = []
+
+    if line_count >= 3:
+        return 'page'
+
+    if len(sparse_boxes) >= 2:
+        return 'mixed'
+
+    primary_crop = _crop_primary_foreground_region(text_crop)
+    word_group_count = _estimate_word_group_count(primary_crop)
+    if line_count <= 1 and word_group_count >= 2:
+        return 'line'
+
+    if line_count <= 1 and word_group_count == 1:
+        return 'word'
+
+    height, width = text_crop.shape[:2]
+    if height > 0 and (width / height) >= 2.2:
+        return 'line'
+
+    return 'mixed'
+
+
 def _pad_line_image(gray_image, padding: int = 24):
     """Add white padding around a line image to help the AI model focus on text."""
 
@@ -1994,6 +2060,9 @@ def predict_handwritten_text(uploaded_image, ocr_engine: str, extraction_mode: s
 
 def extract_and_correct_text(uploaded_image, ocr_engine: str, extraction_mode: str = 'both', target_type: str = 'mixed', api_key: str = '', api_model: str = ''):
     """Return both raw OCR text and NLP-corrected final text."""
+
+    if (target_type or '').strip().lower() == 'auto':
+        target_type = detect_target_type(uploaded_image)
 
     raw_text, prediction_source, prediction_notes = predict_handwritten_text(
         uploaded_image,

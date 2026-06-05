@@ -15,7 +15,13 @@ from django.utils.text import slugify
 
 from .forms import CustomTrainingDatasetForm, ImageUploadForm, PredictionCorrectionForm, TrainingForm
 from .models import UploadedImage
-from .services import _crop_primary_foreground_region, _crop_text_region, _detect_sparse_text_boxes, extract_and_correct_text
+from .services import (
+    _crop_primary_foreground_region,
+    _crop_text_region,
+    _detect_sparse_text_boxes,
+    detect_target_type,
+    extract_and_correct_text,
+)
 from .training_status import read_training_status, write_training_status
 
 
@@ -448,9 +454,10 @@ def home(request):
     latest_ocr_engine = request.session.get('latest_ocr_engine', 'smart')
     latest_extraction_mode = request.session.get('latest_extraction_mode', 'both')
     latest_target_type = request.session.get('latest_target_type', 'mixed')
+    latest_target_selection = request.session.get('latest_target_selection', 'auto')
     form.fields['ocr_engine'].initial = latest_ocr_engine
     form.fields['extraction_mode'].initial = latest_extraction_mode
-    form.fields['target_type'].initial = latest_target_type
+    form.fields['target_type'].initial = latest_target_selection
 
     if request.method == 'POST':
         action = request.POST.get('action', 'upload')
@@ -541,13 +548,17 @@ def home(request):
             if form.is_valid():
                 uploaded_image = form.save()
                 extraction_mode = form.cleaned_data.get('extraction_mode', 'both')
-                target_type = form.cleaned_data.get('target_type', 'mixed')
+                target_selection = form.cleaned_data.get('target_type', 'auto')
+                target_type = detect_target_type(uploaded_image) if target_selection == 'auto' else target_selection
                 raw_text, corrected_text, prediction_source, prediction_notes = extract_and_correct_text(
                     uploaded_image,
                     uploaded_image.ocr_engine,
                     extraction_mode=extraction_mode,
                     target_type=target_type,
                 )
+                if target_selection == 'auto':
+                    auto_note = f'Auto-detected target type: {target_type}.'
+                    prediction_notes = f'{auto_note} {prediction_notes}'.strip()
                 uploaded_image.raw_ocr_text = raw_text
                 uploaded_image.predicted_text = corrected_text
                 uploaded_image.prediction_source = prediction_source
@@ -557,6 +568,7 @@ def home(request):
                 request.session['latest_ocr_engine'] = uploaded_image.ocr_engine
                 request.session['latest_extraction_mode'] = extraction_mode
                 request.session['latest_target_type'] = target_type
+                request.session['latest_target_selection'] = target_selection
                 messages.success(request, 'Image uploaded and prediction generated successfully.')
                 return redirect('home')
             messages.error(request, 'Upload failed. Please correct the form and try again.')
@@ -587,6 +599,7 @@ def home(request):
         'latest_ocr_engine': latest_ocr_engine,
         'latest_extraction_mode': latest_extraction_mode,
         'latest_target_type': latest_target_type,
+        'latest_target_selection': latest_target_selection,
         'uploaded_image': uploaded_image,
         'recent_uploads': recent_uploads,
     }

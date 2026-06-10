@@ -36,6 +36,48 @@ body {
     font-family: "Manrope", "Segoe UI", sans-serif;
 }
 
+body::before,
+body::after {
+    content: "";
+    position: fixed;
+    z-index: -1;
+    width: 34vw;
+    min-width: 280px;
+    aspect-ratio: 1;
+    border-radius: 999px;
+    filter: blur(10px);
+    opacity: 0.55;
+    pointer-events: none;
+    animation: auth-blob-drift 16s ease-in-out infinite alternate;
+}
+
+body::before {
+    top: 9%;
+    left: 7%;
+    background: radial-gradient(circle, rgba(18, 99, 219, 0.20), transparent 68%);
+}
+
+body::after {
+    right: 7%;
+    bottom: 8%;
+    background: radial-gradient(circle, rgba(245, 158, 11, 0.16), transparent 68%);
+    animation-delay: -6s;
+}
+
+@keyframes auth-blob-drift {
+    0% {
+        transform: translate3d(0, 0, 0) scale(1);
+    }
+
+    50% {
+        transform: translate3d(24px, -18px, 0) scale(1.08);
+    }
+
+    100% {
+        transform: translate3d(-18px, 22px, 0) scale(0.96);
+    }
+}
+
 .workspace-shell {
     width: min(1480px, calc(100% - 32px));
     margin: 24px auto;
@@ -87,6 +129,14 @@ body {
     flex-wrap: wrap;
     gap: 10px;
     justify-content: flex-end;
+}
+
+.workspace-auth {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
 }
 
 .workspace-chip {
@@ -594,6 +644,874 @@ textarea.form-control {
     text-align: center;
 }
 
+.auth-shell {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+
+.auth-card {
+    width: min(460px, 100%);
+    padding: 30px;
+    border: 1px solid rgba(255, 255, 255, 0.65);
+    border-radius: 28px;
+    background: rgba(255, 255, 255, 0.9);
+    box-shadow: var(--shadow-soft);
+    backdrop-filter: blur(16px);
+}
+
+.auth-card-attention {
+    animation: auth-shake 420ms ease;
+}
+
+@keyframes auth-shake {
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+
+    20% {
+        transform: translateX(-8px);
+    }
+
+    40% {
+        transform: translateX(8px);
+    }
+
+    60% {
+        transform: translateX(-5px);
+    }
+
+    80% {
+        transform: translateX(5px);
+    }
+}
+
+.yeti-mascot {
+    position: relative;
+    display: grid;
+    justify-items: center;
+    margin: -4px auto 24px;
+    perspective: 700px;
+}
+
+.yeti-head {
+    position: relative;
+    width: 154px;
+    height: 140px;
+    border: 1px solid rgba(255, 255, 255, 0.85);
+    border-radius: 48% 48% 44% 44%;
+    background:
+        radial-gradient(circle at 30% 22%, rgba(255, 255, 255, 0.96) 0 12%, transparent 27%),
+        radial-gradient(circle at 70% 28%, rgba(255, 255, 255, 0.78) 0 10%, transparent 24%),
+        radial-gradient(circle at 50% 88%, #d8ebff 0 20%, transparent 42%),
+        linear-gradient(145deg, #ffffff 0%, #f2f8ff 42%, #d9ecff 100%);
+    box-shadow:
+        inset 14px 14px 22px rgba(255, 255, 255, 0.96),
+        inset -18px -20px 30px rgba(41, 98, 162, 0.18),
+        0 26px 42px rgba(18, 99, 219, 0.18),
+        0 10px 18px rgba(23, 32, 51, 0.10);
+    transform-style: preserve-3d;
+    transition: transform 220ms ease;
+}
+
+.yeti-ear {
+    position: absolute;
+    top: 10px;
+    width: 44px;
+    height: 54px;
+    border: 1px solid rgba(255, 255, 255, 0.82);
+    border-radius: 50%;
+    background:
+        radial-gradient(circle at 42% 36%, #ffffff 0 18%, transparent 42%),
+        linear-gradient(145deg, #f9fcff, #cfe5fb);
+    box-shadow:
+        inset 8px 8px 14px rgba(255, 255, 255, 0.9),
+        inset -10px -12px 18px rgba(41, 98, 162, 0.18),
+        0 12px 20px rgba(23, 32, 51, 0.10);
+}
+
+.yeti-ear-left {
+    left: calc(50% - 88px);
+    transform: rotate(-20deg) translateZ(-12px);
+}
+
+.yeti-ear-right {
+    right: calc(50% - 88px);
+    transform: rotate(20deg) translateZ(-12px);
+}
+
+.yeti-fur {
+    position: absolute;
+    top: 8px;
+    width: 22px;
+    height: 34px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, #ffffff, #d9ecff);
+    box-shadow: inset -4px -5px 8px rgba(41, 98, 162, 0.14);
+}
+
+.yeti-fur-left {
+    left: 42px;
+    transform: rotate(-25deg) translateZ(12px);
+}
+
+.yeti-fur-right {
+    right: 42px;
+    transform: rotate(25deg) translateZ(12px);
+}
+
+.yeti-eye {
+    position: absolute;
+    top: 55px;
+    width: 17px;
+    height: 17px;
+    border-radius: 50%;
+    background:
+        radial-gradient(circle at 34% 30%, #ffffff 0 16%, transparent 17%),
+        radial-gradient(circle at 50% 50%, #26364f 0 42%, #101827 70%);
+    box-shadow:
+        0 4px 8px rgba(23, 32, 51, 0.22),
+        inset 0 -2px 4px rgba(0, 0, 0, 0.28);
+    transition: transform 200ms ease, height 180ms ease;
+}
+
+.yeti-eye-left {
+    left: 49px;
+}
+
+.yeti-eye-right {
+    right: 49px;
+}
+
+.yeti-cheek {
+    position: absolute;
+    top: 78px;
+    width: 24px;
+    height: 13px;
+    border-radius: 999px;
+    background: radial-gradient(circle, rgba(251, 182, 206, 0.62), rgba(251, 182, 206, 0.08) 72%);
+    filter: blur(0.4px);
+}
+
+.yeti-cheek-left {
+    left: 31px;
+}
+
+.yeti-cheek-right {
+    right: 31px;
+}
+
+.yeti-nose {
+    position: absolute;
+    top: 70px;
+    left: 50%;
+    width: 22px;
+    height: 17px;
+    border-radius: 50% 50% 58% 58%;
+    background:
+        radial-gradient(circle at 35% 25%, rgba(255, 255, 255, 0.85) 0 14%, transparent 20%),
+        linear-gradient(145deg, #297be8, #0d4db2);
+    box-shadow:
+        inset -3px -4px 6px rgba(0, 0, 0, 0.18),
+        0 5px 9px rgba(18, 99, 219, 0.25);
+    transform: translateX(-50%);
+}
+
+.yeti-mouth {
+    position: absolute;
+    top: 91px;
+    left: 50%;
+    width: 34px;
+    height: 14px;
+    border-bottom: 4px solid rgba(23, 32, 51, 0.84);
+    border-radius: 0 0 999px 999px;
+    transform: translateX(-50%);
+    transition: width 180ms ease, height 180ms ease;
+}
+
+.yeti-hand {
+    position: absolute;
+    z-index: 2;
+    top: 54px;
+    width: 42px;
+    height: 42px;
+    border: 1px solid rgba(255, 255, 255, 0.88);
+    border-radius: 42% 42% 50% 50%;
+    background:
+        radial-gradient(circle at 34% 25%, #ffffff 0 16%, transparent 40%),
+        linear-gradient(145deg, #ffffff, #dbeeff);
+    box-shadow:
+        inset 8px 8px 12px rgba(255, 255, 255, 0.92),
+        inset -10px -10px 14px rgba(41, 98, 162, 0.16),
+        0 12px 18px rgba(23, 32, 51, 0.12);
+    opacity: 0;
+    transition: opacity 180ms ease, transform 220ms ease;
+}
+
+.yeti-hand-left {
+    left: 22px;
+    transform: translate(-32px, 34px) rotate(-28deg);
+}
+
+.yeti-hand-right {
+    right: 22px;
+    transform: translate(32px, 34px) rotate(28deg);
+}
+
+.yeti-caption {
+    margin: 10px 0 0;
+    color: var(--text-soft);
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+.yeti-portrait {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 178px;
+    height: 164px;
+    border-radius: 36px;
+    background:
+        radial-gradient(circle at 45% 20%, rgba(255, 255, 255, 0.9), transparent 32%),
+        linear-gradient(145deg, rgba(255, 255, 255, 0.74), rgba(219, 234, 254, 0.42));
+    box-shadow:
+        inset 10px 10px 18px rgba(255, 255, 255, 0.7),
+        inset -12px -14px 22px rgba(18, 99, 219, 0.10),
+        0 22px 42px rgba(18, 99, 219, 0.18),
+        0 8px 18px rgba(23, 32, 51, 0.10);
+    overflow: hidden;
+    transform-style: preserve-3d;
+}
+
+.yeti-portrait::after {
+    content: "";
+    position: absolute;
+    inset: auto 26px 12px;
+    height: 18px;
+    border-radius: 999px;
+    background: rgba(23, 32, 51, 0.18);
+    filter: blur(12px);
+}
+
+.yeti-real-image {
+    position: relative;
+    z-index: 1;
+    width: 152px;
+    height: 142px;
+    object-fit: contain;
+    object-position: center;
+    filter: drop-shadow(0 16px 18px rgba(23, 32, 51, 0.20));
+    transform: translateY(4px) rotateX(0deg) rotateY(0deg) scale(1);
+    transition: transform 240ms ease, filter 240ms ease;
+}
+
+.yeti-password-veil {
+    position: absolute;
+    z-index: 2;
+    left: 34px;
+    right: 34px;
+    top: 48px;
+    height: 42px;
+    display: grid;
+    place-items: center;
+    border-radius: 18px;
+    background:
+        linear-gradient(145deg, rgba(15, 23, 42, 0.88), rgba(37, 99, 235, 0.82));
+    box-shadow:
+        inset 3px 3px 8px rgba(255, 255, 255, 0.16),
+        inset -6px -7px 12px rgba(0, 0, 0, 0.22),
+        0 14px 24px rgba(15, 23, 42, 0.24);
+    color: #ffffff;
+    font-size: 1.35rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    opacity: 0;
+    transform: translateY(22px) scale(0.92);
+    transition: opacity 180ms ease, transform 240ms ease;
+}
+
+.yeti-lock {
+    transform: translateY(-2px);
+}
+
+.yeti-mascot[data-state="watching"] .yeti-real-image {
+    transform: translateY(2px) rotateY(12deg) rotateZ(2deg) scale(1.04);
+    filter: drop-shadow(0 18px 20px rgba(18, 99, 219, 0.28));
+}
+
+.yeti-mascot[data-state="covering"] .yeti-real-image {
+    transform: translateY(7px) scale(0.98);
+    filter: drop-shadow(0 14px 16px rgba(23, 32, 51, 0.18)) saturate(0.82);
+}
+
+.yeti-mascot[data-state="covering"] .yeti-password-veil {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+
+.yeti-mascot.is-typing .yeti-real-image {
+    animation: yeti-real-bounce 280ms ease;
+}
+
+@keyframes yeti-real-bounce {
+    0% {
+        transform: translateY(4px) scale(1);
+    }
+
+    45% {
+        transform: translateY(-3px) scale(1.035);
+    }
+
+    100% {
+        transform: translateY(4px) scale(1);
+    }
+}
+
+.yeti-mascot[data-state="watching"] .yeti-eye-left,
+.yeti-mascot[data-state="watching"] .yeti-eye-right {
+    transform: translateX(7px);
+}
+
+.yeti-mascot[data-state="watching"] .yeti-mouth {
+    width: 42px;
+    height: 18px;
+}
+
+.yeti-mascot[data-state="watching"] .yeti-head {
+    transform: rotateY(8deg) rotateX(2deg);
+}
+
+.yeti-mascot[data-state="covering"] .yeti-eye {
+    height: 3px;
+    transform: translateY(4px);
+}
+
+.yeti-mascot[data-state="covering"] .yeti-hand {
+    opacity: 1;
+}
+
+.yeti-mascot[data-state="covering"] .yeti-hand-left {
+    transform: translate(15px, -5px) rotate(-12deg);
+}
+
+.yeti-mascot[data-state="covering"] .yeti-hand-right {
+    transform: translate(-15px, -5px) rotate(12deg);
+}
+
+.yeti-mascot.is-typing .yeti-head {
+    animation: yeti-bounce 260ms ease;
+}
+
+@keyframes yeti-bounce {
+    0% {
+        transform: translateY(0);
+    }
+
+    45% {
+        transform: translateY(-4px);
+    }
+
+    100% {
+        transform: translateY(0);
+    }
+}
+
+.auth-card h1 {
+    margin: 0;
+    font-size: 2rem;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+}
+
+.auth-subtitle {
+    margin: 10px 0 22px;
+    color: var(--text-soft);
+    line-height: 1.65;
+}
+
+.auth-switch {
+    margin: 18px 0 0;
+    color: var(--text-soft);
+    text-align: center;
+}
+
+.auth-switch a {
+    color: var(--accent);
+    font-weight: 800;
+    text-decoration: none;
+}
+
+.password-strength {
+    margin: -4px 0 18px;
+}
+
+.password-strength-track {
+    height: 9px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(95, 107, 125, 0.16);
+}
+
+.password-strength-bar {
+    width: 0;
+    height: 100%;
+    border-radius: inherit;
+    background: #cbd5e1;
+    transition: width 220ms ease, background 220ms ease;
+}
+
+.password-strength-label {
+    margin: 8px 0 0;
+    color: var(--text-soft);
+    font-size: 0.8rem;
+    font-weight: 700;
+}
+
+.password-strength[data-state="weak"] .password-strength-bar {
+    background: #ef4444;
+}
+
+.password-strength[data-state="medium"] .password-strength-bar {
+    background: #f59e0b;
+}
+
+.password-strength[data-state="strong"] .password-strength-bar {
+    background: #16a34a;
+}
+
+.password-strength[data-state="excellent"] .password-strength-bar {
+    background: linear-gradient(90deg, #16a34a, #1263db);
+}
+
+/* Video-inspired split login layout. Overrides the compact mascot card above. */
+.auth-shell-showcase {
+    background:
+        radial-gradient(circle at 16% 16%, rgba(255, 255, 255, 0.44), transparent 24%),
+        radial-gradient(circle at 84% 80%, rgba(235, 126, 28, 0.16), transparent 28%),
+        linear-gradient(135deg, #f8dcc1 0%, #f6cca5 50%, #efb876 100%);
+}
+
+.auth-shell-showcase .auth-card {
+    display: grid;
+    grid-template-columns: minmax(360px, 0.92fr) minmax(420px, 1.08fr);
+    gap: clamp(28px, 4vw, 58px);
+    align-items: stretch;
+    width: min(1160px, calc(100vw - 44px));
+    min-height: 660px;
+    padding: 42px;
+    border-radius: 24px;
+    background: #ffffff;
+    box-shadow:
+        0 44px 96px rgba(96, 55, 20, 0.20),
+        0 14px 30px rgba(96, 55, 20, 0.08);
+    backdrop-filter: none;
+    animation: auth-card-reveal 520ms ease both;
+}
+
+@keyframes auth-card-reveal {
+    from {
+        opacity: 0;
+        transform: translateY(26px) scale(0.985);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.auth-visual-panel {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border-radius: 20px;
+    background:
+        radial-gradient(circle at 50% 24%, rgba(255, 238, 154, 0.62), transparent 32%),
+        radial-gradient(circle at 18% 78%, rgba(255, 255, 255, 0.12), transparent 28%),
+        linear-gradient(180deg, #ef9b21 0%, #df8412 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.38),
+        inset 20px 0 46px rgba(255, 255, 255, 0.08),
+        inset -20px -28px 52px rgba(116, 55, 5, 0.16);
+}
+
+.auth-visual-panel::before {
+    content: "";
+    position: absolute;
+    inset: 28px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.14);
+    filter: blur(36px);
+}
+
+.auth-form-panel {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    max-width: 470px;
+    width: 100%;
+    margin: 0 auto;
+}
+
+.auth-brand {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin: 0 auto 38px;
+    color: #111827;
+    font-size: 1.42rem;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+}
+
+.auth-brand-mark {
+    display: inline-grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 12px;
+    background: linear-gradient(145deg, #1263db, #0d4db2);
+    color: #ffffff;
+    font-size: 0.72rem;
+    letter-spacing: 0.03em;
+    box-shadow: 0 10px 20px rgba(18, 99, 219, 0.28);
+}
+
+.auth-form-panel .panel-eyebrow {
+    display: block;
+    margin: 0 0 12px;
+    color: #ef8e18;
+    text-align: center;
+    font-size: 0.76rem;
+    letter-spacing: 0.12em;
+}
+
+.auth-shell-showcase .yeti-mascot {
+    width: 100%;
+    height: 100%;
+    align-content: center;
+    margin: 0;
+}
+
+.auth-shell-showcase .yeti-portrait {
+    width: min(520px, 42vw);
+    height: min(560px, 64vh);
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.auth-shell-showcase .yeti-portrait::after {
+    inset: auto 64px 10px;
+    height: 28px;
+    background: rgba(30, 20, 8, 0.24);
+    filter: blur(18px);
+}
+
+.auth-shell-showcase .yeti-real-image {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: center center;
+    filter: drop-shadow(0 28px 20px rgba(66, 36, 8, 0.22));
+    transform: translateY(-36px) scale(1.46);
+    opacity: 1;
+    transition: opacity 180ms ease, transform 240ms ease, filter 240ms ease;
+}
+
+.auth-shell-showcase .yeti-real-image.is-swapping {
+    opacity: 0;
+    transform: translateY(16px) scale(1.02);
+}
+
+.auth-shell-showcase .yeti-password-veil {
+    display: none;
+}
+
+.auth-shell-showcase .yeti-caption {
+    position: absolute;
+    left: 24px;
+    right: 24px;
+    bottom: 18px;
+    z-index: 3;
+    margin: 0;
+    color: rgba(255, 255, 255, 0.94);
+    font-size: 0.82rem;
+    font-weight: 800;
+    text-align: center;
+    text-shadow: 0 2px 10px rgba(92, 47, 5, 0.35);
+}
+
+.auth-shell-showcase .yeti-mascot[data-state="watching"] .yeti-real-image {
+    transform: translateY(-38px) rotateY(8deg) rotateZ(1.6deg) scale(1.5);
+    filter: drop-shadow(0 30px 22px rgba(66, 36, 8, 0.28));
+}
+
+.auth-shell-showcase .yeti-mascot[data-state="covering"] .yeti-real-image {
+    transform: translateY(-34px) scale(1.42);
+    filter: drop-shadow(0 22px 18px rgba(66, 36, 8, 0.22)) saturate(0.88);
+}
+
+.auth-shell-showcase .yeti-mascot[data-state="typing"] .yeti-real-image {
+    transform: translateY(-38px) rotateZ(-1.4deg) scale(1.48);
+    filter: drop-shadow(0 30px 22px rgba(66, 36, 8, 0.26));
+}
+
+.auth-shell-showcase .yeti-mascot[data-state="success"] .yeti-real-image {
+    transform: translateY(-40px) rotateZ(2deg) scale(1.52);
+    filter: drop-shadow(0 34px 24px rgba(66, 36, 8, 0.30));
+}
+
+.auth-form-panel h1 {
+    margin: 0;
+    color: #111827;
+    font-size: clamp(2.05rem, 3vw, 2.55rem);
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    text-align: center;
+}
+
+.auth-form-panel .auth-subtitle {
+    max-width: 340px;
+    margin: 10px auto 34px;
+    color: #8b93a1;
+    line-height: 1.65;
+    text-align: center;
+}
+
+.auth-line-field {
+    margin-bottom: 20px;
+}
+
+.auth-line-field .form-label {
+    margin-bottom: 7px;
+    color: #9ca3af;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.auth-line-field .form-control {
+    min-height: 44px;
+    padding: 0.5rem 0;
+    border: none;
+    border-bottom: 1px solid #d9dde5;
+    border-radius: 0;
+    background: transparent;
+    color: #111827;
+    font-weight: 600;
+    font-size: 1rem;
+    box-shadow: none;
+}
+
+.auth-line-field .form-control:focus {
+    border-color: #111827;
+    box-shadow: none;
+}
+
+.auth-form-panel .workspace-submit {
+    min-height: 56px;
+    margin-top: 2px;
+    border-radius: 999px;
+    background: #111111;
+    color: #ffffff;
+    box-shadow: 0 14px 28px rgba(17, 17, 17, 0.16);
+    transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease;
+}
+
+.auth-form-panel .workspace-submit:hover {
+    background: #000000;
+    transform: translateY(-1px);
+    box-shadow: 0 18px 34px rgba(17, 17, 17, 0.20);
+}
+
+.auth-form-panel .auth-switch {
+    margin: 34px 0 0;
+    color: #111827;
+    text-align: center;
+    font-size: 0.86rem;
+}
+
+.auth-form-panel .auth-switch a {
+    color: #111827;
+    border-bottom: 1px solid currentColor;
+}
+
+/* Centered bird-avatar login layout. */
+.auth-shell-centered {
+    background:
+        radial-gradient(circle at 50% 8%, rgba(255, 255, 255, 0.52), transparent 22%),
+        radial-gradient(circle at 18% 82%, rgba(239, 142, 24, 0.18), transparent 30%),
+        linear-gradient(135deg, #f9dfc5 0%, #f4c797 48%, #efb56f 100%);
+}
+
+.auth-shell-centered .auth-card {
+    width: min(470px, calc(100vw - 28px));
+    min-height: auto;
+    padding: 30px 34px 28px;
+    border-radius: 28px;
+    background: rgba(255, 255, 255, 0.94);
+    box-shadow:
+        0 36px 82px rgba(98, 55, 18, 0.22),
+        0 12px 28px rgba(98, 55, 18, 0.10);
+    backdrop-filter: blur(14px);
+    animation: auth-card-reveal 520ms ease both;
+}
+
+.auth-shell-centered .auth-visual-panel {
+    width: 178px;
+    height: 178px;
+    margin: 0 auto 18px;
+    border-radius: 999px;
+    background:
+        radial-gradient(circle at 50% 34%, rgba(255, 236, 161, 0.78), transparent 43%),
+        linear-gradient(180deg, #f2a225 0%, #df8512 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.42),
+        inset -18px -20px 34px rgba(116, 55, 5, 0.14),
+        0 20px 36px rgba(223, 132, 18, 0.28);
+}
+
+.auth-shell-centered .auth-visual-panel::before {
+    content: "";
+    position: absolute;
+    inset: 18px;
+    border-radius: inherit;
+    background: rgba(255, 255, 255, 0.13);
+    filter: blur(18px);
+}
+
+.auth-shell-centered .yeti-mascot {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    align-content: center;
+}
+
+.auth-shell-centered .yeti-portrait {
+    width: 205px;
+    height: 205px;
+    overflow: visible;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.auth-shell-centered .yeti-portrait::after {
+    inset: auto 46px 10px;
+    height: 18px;
+    background: rgba(67, 35, 9, 0.26);
+    filter: blur(12px);
+}
+
+.auth-shell-centered .yeti-real-image {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: center bottom;
+    filter: drop-shadow(0 18px 14px rgba(67, 35, 9, 0.22));
+    transform: translateY(12px) scale(1.1);
+    opacity: 1;
+    transition: opacity 180ms ease, transform 240ms ease, filter 240ms ease;
+}
+
+.auth-shell-centered .yeti-real-image.is-swapping {
+    opacity: 0;
+    transform: translateY(18px) scale(1.02);
+}
+
+.auth-shell-centered .yeti-password-veil,
+.auth-shell-centered .yeti-caption {
+    display: none;
+}
+
+.auth-shell-centered .yeti-mascot[data-state="watching"] .yeti-real-image {
+    transform: translateY(9px) rotateY(8deg) rotateZ(1.5deg) scale(1.14);
+}
+
+.auth-shell-centered .yeti-mascot[data-state="typing"] .yeti-real-image {
+    transform: translateY(10px) rotateZ(-1.2deg) scale(1.12);
+}
+
+.auth-shell-centered .yeti-mascot[data-state="covering"] .yeti-real-image {
+    transform: translateY(12px) scale(1.1);
+}
+
+.auth-shell-centered .yeti-mascot[data-state="success"] .yeti-real-image {
+    transform: translateY(5px) rotateZ(2deg) scale(1.16);
+}
+
+.auth-shell-centered .auth-form-panel {
+    max-width: none;
+    width: 100%;
+    margin: 0;
+}
+
+.auth-shell-centered .auth-brand {
+    margin: 0 auto 18px;
+    font-size: 1.05rem;
+}
+
+.auth-shell-centered .auth-brand-mark {
+    width: 28px;
+    height: 28px;
+    border-radius: 9px;
+    font-size: 0.62rem;
+}
+
+.auth-shell-centered .auth-form-panel .panel-eyebrow {
+    display: block;
+    margin: 0 0 8px;
+    color: #ef8e18;
+    text-align: center;
+    font-size: 0.7rem;
+    letter-spacing: 0.12em;
+}
+
+.auth-shell-centered .auth-form-panel h1 {
+    margin: 0;
+    color: #111827;
+    font-size: clamp(1.85rem, 5vw, 2.35rem);
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    text-align: center;
+}
+
+.auth-shell-centered .auth-form-panel .auth-subtitle {
+    max-width: 330px;
+    margin: 9px auto 28px;
+    color: #8b93a1;
+    line-height: 1.62;
+    text-align: center;
+    font-size: 0.92rem;
+}
+
+.auth-shell-centered .auth-line-field {
+    margin-bottom: 22px;
+}
+
+.auth-shell-centered .auth-line-field .form-control {
+    min-height: 46px;
+    padding: 0.55rem 0;
+}
+
+.auth-shell-centered .auth-form-panel .workspace-submit {
+    min-height: 54px;
+    border-radius: 999px;
+    background: #111111;
+    box-shadow: 0 14px 28px rgba(17, 17, 17, 0.16);
+}
+
+.auth-shell-centered .auth-form-panel .auth-switch {
+    margin: 22px 0 0;
+}
+
 .alert {
     border: none;
     border-radius: 16px;
@@ -622,6 +1540,10 @@ textarea.form-control {
         flex-direction: column;
     }
 
+    .workspace-auth {
+        justify-content: flex-start;
+    }
+
     .workspace-status {
         justify-content: flex-start;
     }
@@ -637,5 +1559,31 @@ textarea.form-control {
     .recent-upload-grid,
     .training-summary-grid {
         grid-template-columns: 1fr;
+    }
+
+    .auth-shell-showcase .auth-card {
+        grid-template-columns: 1fr;
+        min-height: auto;
+        padding: 20px;
+        gap: 24px;
+    }
+
+    .auth-form-panel {
+        order: 1;
+        padding: 10px 4px 0;
+    }
+
+    .auth-visual-panel {
+        order: 2;
+        min-height: 340px;
+    }
+
+    .auth-shell-showcase .yeti-portrait {
+        width: min(360px, 88vw);
+        height: 330px;
+    }
+
+    .auth-brand {
+        margin-bottom: 28px;
     }
 }

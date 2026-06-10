@@ -131,6 +131,7 @@ OCR_API_MODEL = os.environ.get('OCR_API_MODEL', 'gemini-2.0-flash')
 OCR_API_TIMEOUT = int(os.environ.get('OCR_API_TIMEOUT', '60'))
 OCR_SPACE_API_URL = os.environ.get('OCR_SPACE_API_URL', 'https://api.ocr.space/parse/image')
 OCR_SPACE_API_KEY = os.environ.get('OCR_SPACE_API_KEY', 'helloworld')
+OCR_SPACE_API_TIMEOUT = int(os.environ.get('OCR_SPACE_API_TIMEOUT', '12'))
 OCR_TESSERACT_CMD = os.environ.get('OCR_TESSERACT_CMD', '')
 OCR_LOCAL_MODEL_ID = os.environ.get('OCR_LOCAL_MODEL_ID', 'microsoft/trocr-small-handwritten')
 OCR_LOCAL_MODEL_DIR = os.environ.get('OCR_LOCAL_MODEL_DIR', str(BASE_DIR / 'local_models' / 'trocr-small-handwritten'))
@@ -171,3 +172,6 @@ HANDWRITING_DATASET_PROFILES = {
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+LOGIN_URL = 'login'
+LOGIN_REDIRECT_URL = 'home'
+LOGOUT_REDIRECT_URL = 'login'

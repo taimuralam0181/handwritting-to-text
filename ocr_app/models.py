@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 
 
@@ -26,6 +27,7 @@ class UploadedImage(models.Model):
     raw_ocr_text = models.TextField(blank=True)
     predicted_text = models.TextField(blank=True)
     user_corrected_text = models.TextField(blank=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
     correction_applied = models.BooleanField(default=False)
     added_to_training_set = models.BooleanField(default=False)
     uploaded_at = models.DateTimeField(auto_now_add=True)

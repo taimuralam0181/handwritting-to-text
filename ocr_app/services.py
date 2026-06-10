@@ -1701,7 +1701,7 @@ def _predict_with_ocr_space(uploaded_image, target_type: str = 'mixed') -> str:
     )
 
     try:
-        with request.urlopen(req, timeout=settings.OCR_API_TIMEOUT) as response:
+        with request.urlopen(req, timeout=settings.OCR_SPACE_API_TIMEOUT) as response:
             response_data = json.loads(response.read().decode('utf-8'))
     except error.HTTPError as exc:
         return f"OCR.space request failed with HTTP {exc.code}."

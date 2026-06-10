@@ -23,6 +23,16 @@
                     Upload a handwritten image, inspect the preview, and refine the final text from one clean workspace.
                 </p>
             </div>
+            <div class="workspace-auth">
+                <span class="workspace-chip">Signed in: {{ request.user.username }}</span>
+                {% if request.user.is_staff %}
+                    <span class="workspace-chip workspace-chip-muted">Admin controls enabled</span>
+                {% endif %}
+                <form method="post" action="{% url 'logout' %}" class="mb-0">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-secondary btn-sm">Logout</button>
+                </form>
+            </div>
         </div>
 
         {% if messages %}
@@ -94,100 +104,102 @@
                     </form>
                 </div>
 
-                <details class="panel-card panel-card-secondary workspace-details">
-                    <summary>
-                        <span>Custom Training Set</span>
-                        <span class="workspace-summary-meta">{{ custom_dataset_sample_count }} saved</span>
-                    </summary>
-                    <p class="details-copy">
-                        Add labeled handwriting samples so the local deep-learning model can adapt to your writing style.
-                    </p>
-                    <form method="post" enctype="multipart/form-data" novalidate data-processing-form>
-                        {% csrf_token %}
-                        <input type="hidden" name="action" value="add_training_samples">
-
-                        <div class="workspace-field">
-                            <label for="{{ custom_training_form.images.id_for_label }}" class="form-label">Training Images</label>
-                            {{ custom_training_form.images }}
-                            {% if custom_training_form.images.errors %}
-                                <div class="text-danger small mt-1">{{ custom_training_form.images.errors|join:", " }}</div>
-                            {% endif %}
-                        </div>
-
-                        <div class="workspace-field">
-                            <label for="{{ custom_training_form.texts.id_for_label }}" class="form-label">Matching Labels</label>
-                            {{ custom_training_form.texts }}
-                            <div class="field-note">One line per image, in the same order.</div>
-                            {% if custom_training_form.texts.errors %}
-                                <div class="text-danger small mt-1">{{ custom_training_form.texts.errors|join:", " }}</div>
-                            {% endif %}
-                            {% if custom_training_form.non_field_errors %}
-                                <div class="text-danger small mt-1">{{ custom_training_form.non_field_errors|join:", " }}</div>
-                            {% endif %}
-                        </div>
-
-                        <div class="form-check workspace-check">
-                            {{ custom_training_form.auto_segment }}
-                            <label class="form-check-label" for="{{ custom_training_form.auto_segment.id_for_label }}">
-                                Auto-split one page into separate text groups
-                            </label>
-                        </div>
-
-                        <button type="submit" class="btn btn-outline-secondary w-100" data-submit-label="Save Samples">
-                            <span class="button-label">Save Samples</span>
-                            <span class="spinner-border spinner-border-sm d-none" aria-hidden="true"></span>
-                        </button>
-                        <div class="processing-note d-none" aria-live="polite">
-                            Saving custom training images and labels. Please wait.
-                        </div>
-                    </form>
-                </details>
-
-                <details class="panel-card panel-card-secondary workspace-details">
-                    <summary>
-                        <span>Model Training</span>
-                        <span class="workspace-summary-meta">{{ training_summary.status|default:"idle" }}</span>
-                    </summary>
-                    <div class="training-compact">
-                        <p class="mb-2">
-                            <strong>Datasets:</strong> {{ recommended_training_setup.dataset_profiles|join:", " }}
+                {% if request.user.is_staff %}
+                    <details class="panel-card panel-card-secondary workspace-details">
+                        <summary>
+                            <span>Custom Training Set</span>
+                            <span class="workspace-summary-meta">{{ custom_dataset_sample_count }} saved</span>
+                        </summary>
+                        <p class="details-copy">
+                            Add labeled handwriting samples so the local deep-learning model can adapt to your writing style.
                         </p>
-                        <p class="mb-2">
-                            <strong>Preset:</strong> balanced training, {{ recommended_training_setup.epochs }} epochs
-                        </p>
-                    </div>
+                        <form method="post" enctype="multipart/form-data" novalidate data-processing-form>
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="add_training_samples">
 
-                    <form method="post" novalidate data-processing-form>
-                        {% csrf_token %}
-                        <input type="hidden" name="action" value="train">
-                        <button type="submit" class="btn btn-outline-primary w-100" data-submit-label="Start Training">
-                            <span class="button-label">Start Training</span>
-                            <span class="spinner-border spinner-border-sm d-none" aria-hidden="true"></span>
-                        </button>
-                        <div class="processing-note d-none" aria-live="polite">
-                            Starting training job. Progress will appear below.
-                        </div>
-                    </form>
-
-                    <div class="training-status-mini" id="training-status-box">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span class="training-status-label">Status</span>
-                            <span class="badge text-bg-primary" id="training-status-badge">{{ training_summary.status|default:"idle" }}</span>
-                        </div>
-                        <p class="mb-1 small"><strong>Dataset:</strong> <span id="training-dataset">{{ training_summary.dataset_profile|default:"iam_line" }}</span></p>
-                        <p class="mb-2 small"><strong>Message:</strong> <span id="training-message">{{ training_summary.message|default:"No training started yet." }}</span></p>
-                        <div class="progress workspace-progress" role="progressbar" aria-label="Training progress" aria-valuemin="0" aria-valuemax="100">
-                            <div
-                                class="progress-bar"
-                                id="training-progress-bar"
-                                style="width: {{ training_summary.progress|default:0 }}%;"
-                            >
-                                {{ training_summary.progress|default:0 }}%
+                            <div class="workspace-field">
+                                <label for="{{ custom_training_form.images.id_for_label }}" class="form-label">Training Images</label>
+                                {{ custom_training_form.images }}
+                                {% if custom_training_form.images.errors %}
+                                    <div class="text-danger small mt-1">{{ custom_training_form.images.errors|join:", " }}</div>
+                                {% endif %}
                             </div>
+
+                            <div class="workspace-field">
+                                <label for="{{ custom_training_form.texts.id_for_label }}" class="form-label">Matching Labels</label>
+                                {{ custom_training_form.texts }}
+                                <div class="field-note">One line per image, in the same order.</div>
+                                {% if custom_training_form.texts.errors %}
+                                    <div class="text-danger small mt-1">{{ custom_training_form.texts.errors|join:", " }}</div>
+                                {% endif %}
+                                {% if custom_training_form.non_field_errors %}
+                                    <div class="text-danger small mt-1">{{ custom_training_form.non_field_errors|join:", " }}</div>
+                                {% endif %}
+                            </div>
+
+                            <div class="form-check workspace-check">
+                                {{ custom_training_form.auto_segment }}
+                                <label class="form-check-label" for="{{ custom_training_form.auto_segment.id_for_label }}">
+                                    Auto-split one page into separate text groups
+                                </label>
+                            </div>
+
+                            <button type="submit" class="btn btn-outline-secondary w-100" data-submit-label="Save Samples">
+                                <span class="button-label">Save Samples</span>
+                                <span class="spinner-border spinner-border-sm d-none" aria-hidden="true"></span>
+                            </button>
+                            <div class="processing-note d-none" aria-live="polite">
+                                Saving custom training images and labels. Please wait.
+                            </div>
+                        </form>
+                    </details>
+
+                    <details class="panel-card panel-card-secondary workspace-details">
+                        <summary>
+                            <span>Model Training</span>
+                            <span class="workspace-summary-meta">{{ training_summary.status|default:"idle" }}</span>
+                        </summary>
+                        <div class="training-compact">
+                            <p class="mb-2">
+                                <strong>Datasets:</strong> {{ recommended_training_setup.dataset_profiles|join:", " }}
+                            </p>
+                            <p class="mb-2">
+                                <strong>Preset:</strong> balanced training, {{ recommended_training_setup.epochs }} epochs
+                            </p>
                         </div>
-                        <p class="mb-0 small mt-2"><strong>Mode:</strong> <span id="training-mode">{{ training_summary.training_mode|default:"balanced" }}</span></p>
-                    </div>
-                </details>
+
+                        <form method="post" novalidate data-processing-form>
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="train">
+                            <button type="submit" class="btn btn-outline-primary w-100" data-submit-label="Start Training">
+                                <span class="button-label">Start Training</span>
+                                <span class="spinner-border spinner-border-sm d-none" aria-hidden="true"></span>
+                            </button>
+                            <div class="processing-note d-none" aria-live="polite">
+                                Starting training job. Progress will appear below.
+                            </div>
+                        </form>
+
+                        <div class="training-status-mini" id="training-status-box">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="training-status-label">Status</span>
+                                <span class="badge text-bg-primary" id="training-status-badge">{{ training_summary.status|default:"idle" }}</span>
+                            </div>
+                            <p class="mb-1 small"><strong>Dataset:</strong> <span id="training-dataset">{{ training_summary.dataset_profile|default:"iam_line" }}</span></p>
+                            <p class="mb-2 small"><strong>Message:</strong> <span id="training-message">{{ training_summary.message|default:"No training started yet." }}</span></p>
+                            <div class="progress workspace-progress" role="progressbar" aria-label="Training progress" aria-valuemin="0" aria-valuemax="100">
+                                <div
+                                    class="progress-bar"
+                                    id="training-progress-bar"
+                                    style="width: {{ training_summary.progress|default:0 }}%;"
+                                >
+                                    {{ training_summary.progress|default:0 }}%
+                                </div>
+                            </div>
+                            <p class="mb-0 small mt-2"><strong>Mode:</strong> <span id="training-mode">{{ training_summary.training_mode|default:"balanced" }}</span></p>
+                        </div>
+                    </details>
+                {% endif %}
             </aside>
 
             <main class="workspace-panel workspace-panel-preview">
@@ -375,6 +387,9 @@
                 }
 
                 const progress = Number(data.progress || 0);
+                if (!badge || !dataset || !mode || !message || !progressBar) {
+                    return;
+                }
                 badge.textContent = data.status || 'idle';
                 dataset.textContent = data.dataset_profile || 'iam_line';
                 mode.textContent = data.training_mode || 'balanced';

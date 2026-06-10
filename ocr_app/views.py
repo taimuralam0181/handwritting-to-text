@@ -6,6 +6,10 @@ import uuid
 
 import cv2
 import numpy as np
+from django.contrib.auth import login
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import AuthenticationForm
+from django.contrib.auth.views import LoginView, LogoutView
 from django.contrib import messages
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -13,7 +17,7 @@ from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.utils.text import slugify
 
-from .forms import CustomTrainingDatasetForm, ImageUploadForm, PredictionCorrectionForm, TrainingForm
+from .forms import CustomTrainingDatasetForm, ImageUploadForm, PredictionCorrectionForm, TrainingForm, UserRegistrationForm
 from .models import UploadedImage
 from .services import (
     _crop_primary_foreground_region,
@@ -433,12 +437,82 @@ def _run_recommended_training():
     )
 
 
+@login_required
 def training_status(request):
     """Return current one-click training status for polling."""
 
     return JsonResponse(read_training_status())
 
 
+class ProjectLoginView(LoginView):
+    template_name = 'ocr_app/auth_form.html'
+    authentication_form = AuthenticationForm
+    redirect_authenticated_user = True
+
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        form.fields['username'].widget.attrs.update(
+            {
+                'class': 'form-control',
+                'placeholder': 'Username',
+            }
+        )
+        form.fields['password'].widget.attrs.update(
+            {
+                'class': 'form-control',
+                'placeholder': 'Password',
+            }
+        )
+        return form
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(
+            {
+                'auth_title': 'Login',
+                'auth_subtitle': 'Sign in to upload images, review predictions, and save corrections.',
+                'submit_label': 'Login',
+                'alternate_text': 'Need an account?',
+                'alternate_url_name': 'register',
+                'alternate_label': 'Create account',
+            }
+        )
+        return context
+
+
+class ProjectLogoutView(LogoutView):
+    next_page = 'login'
+
+
+def register(request):
+    """Create a user account and sign in immediately."""
+
+    if request.user.is_authenticated:
+        return redirect('home')
+
+    form = UserRegistrationForm(request.POST or None)
+    if request.method == 'POST' and form.is_valid():
+        user = form.save()
+        login(request, user)
+        messages.success(request, 'Account created successfully.')
+        return redirect('home')
+
+    return render(
+        request,
+        'ocr_app/auth_form.html',
+        {
+            'form': form,
+            'auth_title': 'Create Account',
+            'auth_subtitle': 'Register to keep your OCR uploads and corrections separate.',
+            'submit_label': 'Create Account',
+            'alternate_text': 'Already have an account?',
+            'alternate_url_name': 'login',
+            'alternate_label': 'Login',
+        },
+    )
+
+
+@login_required
 def home(request):
     """
     Display the upload form and show the uploaded image preview.
@@ -463,6 +537,9 @@ def home(request):
         action = request.POST.get('action', 'upload')
 
         if action == 'train':
+            if not request.user.is_staff:
+                messages.error(request, 'Only admin users can start model training.')
+                return redirect('home')
             current_status = read_training_status()
             if current_status.get('status') == 'running':
                 messages.warning(request, 'Training is already running. Please wait until it finishes.')
@@ -479,7 +556,9 @@ def home(request):
         elif action == 'save_correction':
             correction_form = PredictionCorrectionForm(request.POST)
             if correction_form.is_valid():
-                uploaded_image = UploadedImage.objects.filter(id=correction_form.cleaned_data['image_id']).first()
+                uploaded_image = UploadedImage.objects.filter(id=correction_form.cleaned_data['image_id']).filter(
+                    user=request.user,
+                ).first()
                 if not uploaded_image:
                     messages.error(request, 'Could not find that uploaded image to save the correction.')
                     return redirect('home')
@@ -525,6 +604,9 @@ def home(request):
 
             messages.error(request, 'Could not save the correction. Please review the form and try again.')
         elif action == 'add_training_samples':
+            if not request.user.is_staff:
+                messages.error(request, 'Only admin users can add direct training samples.')
+                return redirect('home')
             custom_training_form = CustomTrainingDatasetForm(request.POST, request.FILES)
             if custom_training_form.is_valid():
                 try:
@@ -546,7 +628,9 @@ def home(request):
         else:
             form = ImageUploadForm(request.POST, request.FILES)
             if form.is_valid():
-                uploaded_image = form.save()
+                uploaded_image = form.save(commit=False)
+                uploaded_image.user = request.user
+                uploaded_image.save()
                 extraction_mode = form.cleaned_data.get('extraction_mode', 'both')
                 target_selection = form.cleaned_data.get('target_type', 'auto')
                 target_type = detect_target_type(uploaded_image) if target_selection == 'auto' else target_selection
@@ -575,7 +659,7 @@ def home(request):
 
     latest_uploaded_image_id = request.session.get('latest_uploaded_image_id')
     if latest_uploaded_image_id:
-        uploaded_image = UploadedImage.objects.filter(id=latest_uploaded_image_id).first()
+        uploaded_image = UploadedImage.objects.filter(id=latest_uploaded_image_id, user=request.user).first()
         if uploaded_image:
             correction_form = PredictionCorrectionForm(
                 initial={
@@ -585,7 +669,7 @@ def home(request):
                 }
             )
 
-    recent_uploads = UploadedImage.objects.all()[:6]
+    recent_uploads = UploadedImage.objects.filter(user=request.user)[:6]
 
     context = {
         'form': form,

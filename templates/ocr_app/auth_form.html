@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ auth_title }} - Handwritten Recognition</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+        rel="stylesheet"
+    >
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+    <main class="auth-shell auth-shell-showcase">
+        <section class="auth-card {% if form.errors or messages %}auth-card-attention{% endif %}">
+            <div class="auth-form-panel">
+                <div class="auth-brand">
+                    <span class="auth-brand-mark">OCR</span>
+                    <strong>handwrite.ai</strong>
+                </div>
+                <p class="panel-eyebrow">Handwriting OCR Workspace</p>
+                <h1>{% if auth_title == 'Login' %}Welcome back{% else %}Create account{% endif %}</h1>
+                <p class="auth-subtitle">{{ auth_subtitle }}</p>
+
+                {% if messages %}
+                    <div class="workspace-messages">
+                        {% for message in messages %}
+                            <div class="alert alert-{{ message.tags }} mb-0" role="alert">
+                                {{ message }}
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                <form method="post" novalidate data-auth-form>
+                    {% csrf_token %}
+                    {% for field in form %}
+                        <div class="workspace-field auth-line-field">
+                            <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+                            {{ field }}
+                            {% if field.errors %}
+                                <div class="text-danger small mt-1">{{ field.errors|join:", " }}</div>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                    {% if auth_title == 'Create Account' %}
+                        <div class="password-strength" data-password-strength>
+                            <div class="password-strength-track">
+                                <div class="password-strength-bar" data-password-strength-bar></div>
+                            </div>
+                            <p class="password-strength-label" data-password-strength-label>Type a password to check strength.</p>
+                        </div>
+                    {% endif %}
+                    {% if form.non_field_errors %}
+                        <div class="text-danger small mb-3">{{ form.non_field_errors|join:", " }}</div>
+                    {% endif %}
+                    <button type="submit" class="btn btn-primary workspace-submit w-100" data-auth-submit>
+                        <span class="button-label">{{ submit_label }}</span>
+                        <span class="spinner-border spinner-border-sm d-none" aria-hidden="true"></span>
+                    </button>
+                </form>
+
+                <p class="auth-switch">
+                    {{ alternate_text }}
+                    <a href="{% url alternate_url_name %}">{{ alternate_label }}</a>
+                </p>
+            </div>
+
+            <div class="auth-visual-panel">
+                <div class="yeti-mascot" data-yeti-mascot aria-hidden="true">
+                    <div class="yeti-portrait">
+                        <img
+                            src="{% static 'images/bird-idle.png' %}"
+                            alt=""
+                            class="yeti-real-image"
+                            data-bird-image
+                            data-idle-src="{% static 'images/bird-idle.png' %}"
+                            data-look-right-src="{% static 'images/bird-look-right.png' %}"
+                            data-look-down-src="{% static 'images/bird-look-down.png' %}"
+                            data-cover-src="{% static 'images/bird-cover-eyes.png' %}"
+                            data-success-src="{% static 'images/bird-success.png' %}"
+                        >
+                        <div class="yeti-password-veil">
+                            <span class="yeti-lock">...</span>
+                        </div>
+                    </div>
+                    <p class="yeti-caption visually-hidden" data-yeti-caption>Ready to recognize handwriting</p>
+                </div>
+            </div>
+        </section>
+    </main>
+    <script>
+        (function () {
+            const mascot = document.querySelector('[data-yeti-mascot]');
+            const caption = document.querySelector('[data-yeti-caption]');
+            const birdImage = document.querySelector('[data-bird-image]');
+            if (!mascot || !caption) {
+                return;
+            }
+
+            const usernameInputs = document.querySelectorAll('input[name="username"], input[name="email"]');
+            const passwordInputs = document.querySelectorAll('input[type="password"]');
+            const allInputs = document.querySelectorAll('input');
+            const authForm = document.querySelector('[data-auth-form]');
+            const submitButton = document.querySelector('[data-auth-submit]');
+            const strength = document.querySelector('[data-password-strength]');
+            const strengthBar = document.querySelector('[data-password-strength-bar]');
+            const strengthLabel = document.querySelector('[data-password-strength-label]');
+
+            function setState(state, text) {
+                mascot.dataset.state = state;
+                caption.textContent = text;
+                if (!birdImage) {
+                    return;
+                }
+                const stateSourceMap = {
+                    idle: birdImage.dataset.idleSrc,
+                    watching: birdImage.dataset.lookRightSrc,
+                    typing: birdImage.dataset.lookDownSrc,
+                    covering: birdImage.dataset.coverSrc,
+                    success: birdImage.dataset.successSrc,
+                };
+                const nextSource = stateSourceMap[state];
+                if (nextSource && birdImage.getAttribute('src') !== nextSource) {
+                    birdImage.classList.add('is-swapping');
+                    window.setTimeout(() => {
+                        birdImage.setAttribute('src', nextSource);
+                        birdImage.classList.remove('is-swapping');
+                    }, 90);
+                }
+            }
+
+            usernameInputs.forEach((input) => {
+                input.addEventListener('focus', () => setState('watching', 'Watching your username'));
+            });
+
+            passwordInputs.forEach((input) => {
+                input.addEventListener('focus', () => setState('covering', 'Password is private'));
+            });
+
+            allInputs.forEach((input) => {
+                input.addEventListener('input', () => {
+                    if (document.activeElement && document.activeElement.type !== 'password') {
+                        setState('typing', 'Following your typing');
+                    }
+                    mascot.classList.remove('is-typing');
+                    void mascot.offsetWidth;
+                    mascot.classList.add('is-typing');
+                });
+                input.addEventListener('blur', () => {
+                    if (![...allInputs].some((field) => field === document.activeElement)) {
+                        setState('idle', 'Ready to recognize handwriting');
+                    }
+                });
+            });
+
+            function scorePassword(value) {
+                let score = 0;
+                if (value.length >= 8) score += 1;
+                if (value.length >= 12) score += 1;
+                if (/[a-z]/.test(value) && /[A-Z]/.test(value)) score += 1;
+                if (/\d/.test(value)) score += 1;
+                if (/[^A-Za-z0-9]/.test(value)) score += 1;
+                return Math.min(score, 5);
+            }
+
+            if (strength && strengthBar && strengthLabel && passwordInputs.length) {
+                passwordInputs[0].addEventListener('input', (event) => {
+                    const score = scorePassword(event.target.value);
+                    const states = [
+                        ['empty', 'Type a password to check strength.', '0%'],
+                        ['weak', 'Weak password', '24%'],
+                        ['weak', 'Weak password', '38%'],
+                        ['medium', 'Medium password', '58%'],
+                        ['strong', 'Strong password', '78%'],
+                        ['excellent', 'Excellent password', '100%'],
+                    ];
+                    const [state, text, width] = states[score];
+                    strength.dataset.state = state;
+                    strengthBar.style.width = width;
+                    strengthLabel.textContent = text;
+                });
+            }
+
+            if (authForm && submitButton) {
+                authForm.addEventListener('submit', () => {
+                    setState('success', 'Signing you in');
+                    submitButton.disabled = true;
+                    submitButton.classList.add('is-processing');
+                    const label = submitButton.querySelector('.button-label');
+                    const spinner = submitButton.querySelector('.spinner-border');
+                    if (label) {
+                        label.textContent = 'Checking...';
+                    }
+                    if (spinner) {
+                        spinner.classList.remove('d-none');
+                    }
+                });
+            }
+        })();
+    </script>
+</body>
+</html>

@@ -1666,7 +1666,7 @@ def _predict_with_ocr_space(uploaded_image, target_type: str = 'mixed') -> str:
     """Use the free OCR.space API as a hidden cloud OCR fallback."""
 
     api_url = (settings.OCR_SPACE_API_URL or '').strip()
-    api_key = (settings.OCR_SPACE_API_KEY or 'helloworld').strip()
+    api_key = (settings.OCR_SPACE_API_KEY or '').strip()
     if not api_url or not api_key:
         return "OCR.space is not configured."
 
@@ -2002,7 +2002,7 @@ def _predict_with_smart_pipeline(uploaded_image, extraction_mode: str = 'both', 
 
     if _looks_like_api_error(api_text):
         best_local = _select_best_text_candidate([local_text], target_type=target_type) or local_text
-        return best_local, local_source, api_text
+        return best_local, local_source, ''
 
     candidate_map = {
         api_source: api_text,

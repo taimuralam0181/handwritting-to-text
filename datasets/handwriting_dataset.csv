@@ -112,3 +112,21 @@ the quick brown box pumps
 sample data imp guess actually
 training works better with labels
 want better recognition results"
+kk-correction.jpeg,"Taimur Alam
+ID-666-50-29
+Neural network and fuzzy
+logic assignment
+How does DBN work? Role of RBM
+A Deep Belief Network (DBN) is a type of
+deep learning model made up of multiple
+layers. It learns patterns from data and uses
+those patterns to make predictions. For example,
+in health care, it can predict whether a patient
+is diabetic or not.
+Role of RBM:
+Helps in learning important features from
+raw data.
+Identifies hidden patterns that are not
+directly visible.
+Improves the overall prediction accuracy
+of the model."

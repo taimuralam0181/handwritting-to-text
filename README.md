@@ -203,3 +203,27 @@ The app will automatically prefer the fine-tuned model if this folder exists:
 ```text
 local_models/trocr-small-handwritten-finetuned
 ```
+
+## JSON API
+
+The project includes a dependency-free JSON API with signed bearer-token
+authentication:
+
+```text
+POST /api/register/
+POST /api/login/
+POST /api/ocr/
+GET  /api/uploads/
+GET  /api/uploads/<id>/
+POST /api/uploads/<id>/correction/
+GET  /api/training/status/
+POST /api/training/start/
+```
+
+Send the login token on protected requests:
+
+```text
+Authorization: Bearer YOUR_TOKEN
+```
+
+See `API_USAGE_BANGLISH.txt` for request and response examples.

@@ -1,0 +1,158 @@
+HANDWRITING OCR API USAGE (BANGLISH)
+====================================
+
+Base URL:
+http://127.0.0.1:8000
+
+Authentication:
+Login/register response theke token nibe. Protected request-e header:
+
+Authorization: Bearer YOUR_TOKEN
+
+
+1. REGISTER
+-----------
+
+POST /api/register/
+Content-Type: application/json
+
+Body:
+{
+  "username": "taimur",
+  "email": "user@example.com",
+  "password": "strong-password-123"
+}
+
+
+2. LOGIN
+--------
+
+POST /api/login/
+Content-Type: application/json
+
+Body:
+{
+  "username": "taimur",
+  "password": "strong-password-123"
+}
+
+Response:
+{
+  "token": "...",
+  "expires_in": 2592000,
+  "user": {
+    "id": 1,
+    "username": "taimur",
+    "email": "user@example.com"
+  }
+}
+
+
+3. OCR IMAGE UPLOAD
+-------------------
+
+POST /api/ocr/
+Authorization: Bearer YOUR_TOKEN
+Content-Type: multipart/form-data
+
+Form fields:
+- image: required image file
+- title: optional
+- extraction_mode: both, crop, or full
+- target_type: auto, mixed, word, line, or page
+
+Example curl:
+
+curl -X POST http://127.0.0.1:8000/api/ocr/ ^
+  -H "Authorization: Bearer YOUR_TOKEN" ^
+  -F "image=@C:\path\handwriting.jpg" ^
+  -F "target_type=auto" ^
+  -F "extraction_mode=both"
+
+Response:
+{
+  "id": 15,
+  "title": "",
+  "image_url": "http://127.0.0.1:8000/media/uploaded_images/handwriting.jpg",
+  "ocr_engine": "smart",
+  "prediction_source": "local",
+  "prediction_notes": "Auto-detected target type: page.",
+  "raw_ocr_text": "...",
+  "predicted_text": "...",
+  "user_corrected_text": "",
+  "correction_applied": false,
+  "added_to_training_set": false,
+  "uploaded_at": "2026-06-10T...",
+  "target_type": "page",
+  "used_saved_correction": false
+}
+
+
+4. USER UPLOAD LIST
+-------------------
+
+GET /api/uploads/
+Authorization: Bearer YOUR_TOKEN
+
+Maximum latest 50 uploads return kore.
+
+
+5. SINGLE UPLOAD
+----------------
+
+GET /api/uploads/15/
+Authorization: Bearer YOUR_TOKEN
+
+Only current user-er upload access kora jabe.
+
+
+6. SAVE CORRECTION
+------------------
+
+POST /api/uploads/15/correction/
+Authorization: Bearer YOUR_TOKEN
+Content-Type: application/json
+
+Body:
+{
+  "corrected_text": "This is the correct handwritten text."
+}
+
+Correction database and custom dataset-e save hobe. Same user same image abar
+upload korle saved correction memory use hobe.
+
+
+7. TRAINING STATUS
+------------------
+
+GET /api/training/status/
+Authorization: Bearer YOUR_TOKEN
+
+
+8. START TRAINING
+-----------------
+
+POST /api/training/start/
+Authorization: Bearer ADMIN_TOKEN
+
+Only staff/admin user start korte parbe.
+
+
+9. COMMON ERROR STATUS
+----------------------
+
+400 = Invalid body/form/image
+401 = Token missing, invalid, or expired
+403 = Admin permission required
+404 = Upload not found
+409 = Username exists or training already running
+
+
+10. IMPORTANT SECURITY NOTES
+----------------------------
+
+- API token public/share korbe na.
+- Token default 30 days valid.
+- User password change hole old token invalid hoye jabe.
+- Production-e HTTPS use korte hobe.
+- DEBUG=False and strong SECRET_KEY use korte hobe.

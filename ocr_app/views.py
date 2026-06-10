@@ -23,6 +23,7 @@ from .services import (
     _crop_primary_foreground_region,
     _crop_text_region,
     _detect_sparse_text_boxes,
+    calculate_image_fingerprint,
     detect_target_type,
     extract_and_correct_text,
 )
@@ -303,6 +304,57 @@ def _store_prediction_correction(uploaded_image, corrected_text: str) -> int:
     return 1
 
 
+def _ensure_image_fingerprint(uploaded_image) -> str:
+    """Calculate and persist a visual fingerprint when it is missing."""
+
+    if uploaded_image.image_fingerprint:
+        return uploaded_image.image_fingerprint
+
+    try:
+        fingerprint = calculate_image_fingerprint(uploaded_image.image.path)
+    except (OSError, ValueError):
+        return ''
+
+    uploaded_image.image_fingerprint = fingerprint
+    uploaded_image.save(update_fields=['image_fingerprint'])
+    return fingerprint
+
+
+def _find_saved_correction(uploaded_image):
+    """Return a prior correction for the same user's visually identical image."""
+
+    fingerprint = _ensure_image_fingerprint(uploaded_image)
+    if not fingerprint or not uploaded_image.user_id:
+        return None
+
+    match = (
+        UploadedImage.objects.filter(
+            user_id=uploaded_image.user_id,
+            correction_applied=True,
+            image_fingerprint=fingerprint,
+        )
+        .exclude(pk=uploaded_image.pk)
+        .order_by('-uploaded_at')
+        .first()
+    )
+    if match:
+        return match
+
+    legacy_corrections = (
+        UploadedImage.objects.filter(
+            user_id=uploaded_image.user_id,
+            correction_applied=True,
+            image_fingerprint='',
+        )
+        .exclude(pk=uploaded_image.pk)
+    )
+    for legacy_image in legacy_corrections:
+        if _ensure_image_fingerprint(legacy_image) == fingerprint:
+            return legacy_image
+
+    return None
+
+
 def _get_recommended_training_setup():
     """Recommended one-click training configuration for this project."""
 
@@ -565,6 +617,7 @@ def home(request):
 
                 corrected_text = correction_form.cleaned_data['corrected_text']
                 saved_count = _store_prediction_correction(uploaded_image, corrected_text)
+                _ensure_image_fingerprint(uploaded_image)
                 uploaded_image.user_corrected_text = corrected_text
                 uploaded_image.predicted_text = corrected_text
                 uploaded_image.correction_applied = True
@@ -634,12 +687,19 @@ def home(request):
                 extraction_mode = form.cleaned_data.get('extraction_mode', 'both')
                 target_selection = form.cleaned_data.get('target_type', 'auto')
                 target_type = detect_target_type(uploaded_image) if target_selection == 'auto' else target_selection
-                raw_text, corrected_text, prediction_source, prediction_notes = extract_and_correct_text(
-                    uploaded_image,
-                    uploaded_image.ocr_engine,
-                    extraction_mode=extraction_mode,
-                    target_type=target_type,
-                )
+                saved_correction = _find_saved_correction(uploaded_image)
+                if saved_correction:
+                    corrected_text = saved_correction.user_corrected_text or saved_correction.predicted_text
+                    raw_text = corrected_text
+                    prediction_source = 'memory'
+                    prediction_notes = 'Used your saved correction for this image.'
+                else:
+                    raw_text, corrected_text, prediction_source, prediction_notes = extract_and_correct_text(
+                        uploaded_image,
+                        uploaded_image.ocr_engine,
+                        extraction_mode=extraction_mode,
+                        target_type=target_type,
+                    )
                 if target_selection == 'auto':
                     auto_note = f'Auto-detected target type: {target_type}.'
                     prediction_notes = f'{auto_note} {prediction_notes}'.strip()
@@ -647,7 +707,15 @@ def home(request):
                 uploaded_image.predicted_text = corrected_text
                 uploaded_image.prediction_source = prediction_source
                 uploaded_image.prediction_notes = prediction_notes
-                uploaded_image.save(update_fields=['raw_ocr_text', 'predicted_text', 'prediction_source', 'prediction_notes'])
+                uploaded_image.save(
+                    update_fields=[
+                        'raw_ocr_text',
+                        'predicted_text',
+                        'prediction_source',
+                        'prediction_notes',
+                        'image_fingerprint',
+                    ]
+                )
                 request.session['latest_uploaded_image_id'] = uploaded_image.id
                 request.session['latest_ocr_engine'] = uploaded_image.ocr_engine
                 request.session['latest_extraction_mode'] = extraction_mode

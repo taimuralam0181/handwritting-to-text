@@ -278,8 +278,14 @@
                             <div>
                                 <span class="preview-meta-label">Source</span>
                                 <div class="result-source">
-                                    <span class="prediction-light {% if uploaded_image.is_gemini_prediction %}prediction-light-gemini{% else %}prediction-light-ocr{% endif %}"></span>
-                                    {% if uploaded_image.is_gemini_prediction %}Gemini{% else %}OCR{% endif %}
+                                    <span class="prediction-light {% if uploaded_image.is_gemini_prediction or uploaded_image.is_saved_correction %}prediction-light-gemini{% else %}prediction-light-ocr{% endif %}"></span>
+                                    {% if uploaded_image.is_saved_correction %}
+                                        Saved Correction
+                                    {% elif uploaded_image.is_gemini_prediction %}
+                                        Gemini
+                                    {% else %}
+                                        OCR
+                                    {% endif %}
                                 </div>
                             </div>
                             <div>

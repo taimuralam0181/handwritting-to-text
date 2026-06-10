@@ -1,5 +1,6 @@
 from pathlib import Path
 import base64
+import hashlib
 import io
 import json
 import os
@@ -44,6 +45,18 @@ KNOWN_SECTION_HEADINGS = [
     "Achievements",
 ]
 HEADING_SCORE_THRESHOLD = 72
+
+
+def calculate_image_fingerprint(image_path: str) -> str:
+    """Create a metadata-independent visual fingerprint for correction lookup."""
+
+    with Image.open(image_path) as source_image:
+        normalized = ImageOps.exif_transpose(source_image).convert('L')
+        normalized = normalized.resize((32, 32), Image.Resampling.LANCZOS)
+        pixels = np.asarray(normalized, dtype=np.uint8)
+        average = float(pixels.mean())
+        visual_bits = np.packbits((pixels >= average).astype(np.uint8)).tobytes()
+        return hashlib.sha256(visual_bits).hexdigest()
 
 
 def _resolve_local_ai_model_dir():

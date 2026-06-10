@@ -16,6 +16,7 @@ class UploadedImage(models.Model):
         ('api', 'API OCR'),
         ('local', 'Local OCR'),
         ('local_ai', 'Local AI OCR'),
+        ('memory', 'Saved Correction'),
         ('unknown', 'Unknown'),
     ]
 
@@ -27,6 +28,7 @@ class UploadedImage(models.Model):
     raw_ocr_text = models.TextField(blank=True)
     predicted_text = models.TextField(blank=True)
     user_corrected_text = models.TextField(blank=True)
+    image_fingerprint = models.CharField(max_length=64, blank=True, db_index=True)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
     correction_applied = models.BooleanField(default=False)
     added_to_training_set = models.BooleanField(default=False)
@@ -42,3 +44,8 @@ class UploadedImage(models.Model):
         """Return whether the latest prediction came from Gemini."""
 
         return self.prediction_source == 'gemini'
+
+    def is_saved_correction(self):
+        """Return whether the prediction came from correction memory."""
+
+        return self.prediction_source == 'memory'

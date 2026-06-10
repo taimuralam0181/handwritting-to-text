@@ -10,7 +10,7 @@ from urllib import error, request
 import cv2
 import numpy as np
 import pytesseract
-from PIL import Image
+from PIL import Image, ImageOps
 from django.conf import settings
 from pytesseract import Output
 from rapidfuzz import fuzz
@@ -1662,6 +1662,39 @@ def _encode_multipart_formdata(fields: dict[str, str], file_field_name: str, fil
     return b"\r\n".join(lines), boundary
 
 
+def _prepare_ocr_space_upload(image_path: Path, max_bytes: int = 900 * 1024):
+    """Compress only the cloud-upload copy; keep the original image unchanged."""
+
+    original_bytes = image_path.read_bytes()
+    if len(original_bytes) <= max_bytes:
+        return original_bytes, image_path.name, 'application/octet-stream'
+
+    with Image.open(io.BytesIO(original_bytes)) as source_image:
+        image = ImageOps.exif_transpose(source_image).convert('RGB')
+        image.thumbnail((2400, 2400), Image.Resampling.LANCZOS)
+
+        smallest_bytes = b''
+        for _ in range(6):
+            for quality in (85, 75, 65, 55, 45):
+                output = io.BytesIO()
+                image.save(output, format='JPEG', quality=quality, optimize=True)
+                candidate = output.getvalue()
+                smallest_bytes = candidate
+                if len(candidate) <= max_bytes:
+                    return candidate, f'{image_path.stem}-ocr.jpg', 'image/jpeg'
+
+            width, height = image.size
+            if width <= 700 or height <= 700:
+                break
+            scale = max(0.65, min(0.9, (max_bytes / len(smallest_bytes)) ** 0.5 * 0.92))
+            image = image.resize(
+                (max(1, int(width * scale)), max(1, int(height * scale))),
+                Image.Resampling.LANCZOS,
+            )
+
+    return smallest_bytes or original_bytes, f'{image_path.stem}-ocr.jpg', 'image/jpeg'
+
+
 def _predict_with_ocr_space(uploaded_image, target_type: str = 'mixed') -> str:
     """Use the free OCR.space API as a hidden cloud OCR fallback."""
 
@@ -1672,8 +1705,8 @@ def _predict_with_ocr_space(uploaded_image, target_type: str = 'mixed') -> str:
 
     image_path = Path(uploaded_image.image.path)
     try:
-        file_bytes = image_path.read_bytes()
-    except OSError as exc:
+        file_bytes, upload_name, content_type = _prepare_ocr_space_upload(image_path)
+    except (OSError, ValueError) as exc:
         return f"OCR.space file read failed: {exc}"
 
     fields = {
@@ -1686,9 +1719,9 @@ def _predict_with_ocr_space(uploaded_image, target_type: str = 'mixed') -> str:
     body, boundary = _encode_multipart_formdata(
         fields,
         'file',
-        image_path.name,
+        upload_name,
         file_bytes,
-        'application/octet-stream',
+        content_type,
     )
     req = request.Request(
         api_url,
